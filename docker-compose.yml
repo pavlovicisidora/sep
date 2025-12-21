@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  webshop-db:
+    image: postgres:15-alpine
+    container_name: webshop-postgres
+    environment:
+      POSTGRES_DB: webshop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - webshop-data:/var/lib/postgresql/data
+    networks:
+      - sep-network
+
+  psp-db:
+    image: postgres:15-alpine
+    container_name: psp-postgres
+    environment:
+      POSTGRES_DB: psp_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - psp-data:/var/lib/postgresql/data
+    networks:
+      - sep-network
+
+  bank-db:
+    image: postgres:15-alpine
+    container_name: bank-postgres
+    environment:
+      POSTGRES_DB: bank_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - bank-data:/var/lib/postgresql/data
+    networks:
+      - sep-network
+
+volumes:
+  webshop-data:
+  psp-data:
+  bank-data:
+
+networks:
+  sep-network:
+    driver: bridge
