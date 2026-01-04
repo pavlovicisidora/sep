@@ -2,29 +2,35 @@ package com.ftn.sep.webshop.controller;
 
 import com.ftn.sep.webshop.dto.CreateOrderRequest;
 import com.ftn.sep.webshop.dto.OrderResponse;
+import com.ftn.sep.webshop.model.OrderStatus;
 import com.ftn.sep.webshop.model.RentalOrder;
 import com.ftn.sep.webshop.model.User;
 import com.ftn.sep.webshop.model.Vehicle;
+import com.ftn.sep.webshop.service.PSPService;
 import com.ftn.sep.webshop.service.RentalOrderService;
 import com.ftn.sep.webshop.service.UserService;
 import com.ftn.sep.webshop.service.VehicleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
+@Slf4j
 public class RentalOrderController {
 
     private final RentalOrderService rentalOrderService;
     private final UserService userService;
     private final VehicleService vehicleService;
+    private final PSPService pspService;
 
     @PostMapping
     public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
@@ -63,6 +69,34 @@ public class RentalOrderController {
                 .map(this::mapToResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{orderId}/pay")
+    public ResponseEntity<?> initiatePayment(@PathVariable Long orderId) {
+        RentalOrder order = rentalOrderService.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (order.getStatus() != OrderStatus.PENDING) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Order is not in PENDING status"));
+        }
+
+        try {
+            Map<String, Object> pspResponse = pspService.initializePayment(
+                    order.getMerchantOrderId(),
+                    order.getTotalPrice(),
+                    order.getCurrency()
+            );
+
+            rentalOrderService.updateOrderStatus(orderId, OrderStatus.PROCESSING);
+
+            return ResponseEntity.ok(pspResponse);
+
+        } catch (Exception e) {
+            log.error("Error initiating payment", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to initiate payment"));
+        }
     }
 
     private OrderResponse mapToResponse(RentalOrder order) {
