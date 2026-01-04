@@ -23,6 +23,9 @@ export class VehicleCatalogComponent implements OnInit {
   processingOrder = false;
   error: string | null = null;
 
+  selectedPaymentMethod: 'card' | 'qr' | null = null;
+  showPaymentMethodSelection = false;
+
   constructor(
     private vehicleService: VehicleService,
     private orderService: OrderService,
@@ -90,6 +93,20 @@ export class VehicleCatalogComponent implements OnInit {
       this.bookingForm.markAllAsTouched();
       return;
     }
+    this.showPaymentMethodSelection = true;
+  }
+
+  selectPaymentMethod(method: 'card' | 'qr'): void {
+    if (method === 'qr') {
+      alert('QR code payment will be available in the final version. Please use Card payment.');
+      return;
+    }
+    this.selectedPaymentMethod = method;
+    this.proceedWithPayment();
+  }
+
+  proceedWithPayment(): void {
+    if (!this.selectedVehicle) return;
 
     this.processingOrder = true;
     this.error = null;
@@ -109,12 +126,14 @@ export class VehicleCatalogComponent implements OnInit {
           error: (err) => {
             this.error = 'Failed to initialize payment. Please try again.';
             this.processingOrder = false;
+            this.showPaymentMethodSelection = false;
           }
         });
       },
       error: (err) => {
         this.error = err.error?.error || 'Failed to create order. Please try again.';
         this.processingOrder = false;
+        this.showPaymentMethodSelection = false;
       }
     });
   }
