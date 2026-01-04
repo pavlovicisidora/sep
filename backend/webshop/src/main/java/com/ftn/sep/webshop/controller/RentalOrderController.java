@@ -6,6 +6,7 @@ import com.ftn.sep.webshop.model.OrderStatus;
 import com.ftn.sep.webshop.model.RentalOrder;
 import com.ftn.sep.webshop.model.User;
 import com.ftn.sep.webshop.model.Vehicle;
+import com.ftn.sep.webshop.security.SecurityUtils;
 import com.ftn.sep.webshop.service.PSPService;
 import com.ftn.sep.webshop.service.RentalOrderService;
 import com.ftn.sep.webshop.service.UserService;
@@ -34,7 +35,8 @@ public class RentalOrderController {
 
     @PostMapping
     public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
-        User user = userService.findById(request.getUserId())
+        String currentUserEmail = SecurityUtils.getCurrentUserEmail();
+        User user = userService.findByEmail(currentUserEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         Vehicle vehicle = vehicleService.findById(request.getVehicleId())
@@ -51,9 +53,10 @@ public class RentalOrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<List<OrderResponse>> getUserOrders(@PathVariable Long userId) {
-        User user = userService.findById(userId)
+    @GetMapping("/my")
+    public ResponseEntity<List<OrderResponse>> getMyOrders() {
+        String currentUserEmail = SecurityUtils.getCurrentUserEmail();
+        User user = userService.findByEmail(currentUserEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         List<OrderResponse> orders = rentalOrderService.getUserOrders(user).stream()
@@ -65,16 +68,33 @@ public class RentalOrderController {
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getOrder(@PathVariable Long id) {
-        return rentalOrderService.findById(id)
-                .map(this::mapToResponse)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        String currentUserEmail = SecurityUtils.getCurrentUserEmail();
+        User currentUser = userService.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        RentalOrder order = rentalOrderService.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (!order.getUser().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        return ResponseEntity.ok(mapToResponse(order));
     }
 
     @PostMapping("/{orderId}/pay")
     public ResponseEntity<?> initiatePayment(@PathVariable Long orderId) {
+        String currentUserEmail = SecurityUtils.getCurrentUserEmail();
+        User currentUser = userService.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
         RentalOrder order = rentalOrderService.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (!order.getUser().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "You can only pay for your own orders"));
+        }
 
         if (order.getStatus() != OrderStatus.PENDING) {
             return ResponseEntity.badRequest()

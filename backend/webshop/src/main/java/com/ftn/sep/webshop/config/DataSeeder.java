@@ -7,6 +7,7 @@ import com.ftn.sep.webshop.repository.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -18,6 +19,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final VehicleRepository vehicleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
@@ -33,7 +35,7 @@ public class DataSeeder implements CommandLineRunner {
 
         User user1 = new User();
         user1.setEmail("test@example.com");
-        user1.setPassword("password123"); // TODO: Hash later
+        user1.setPassword(passwordEncoder.encode("password123"));
         user1.setFirstName("Marko");
         user1.setLastName("Marković");
         user1.setPhoneNumber("+381601234567");
@@ -41,7 +43,7 @@ public class DataSeeder implements CommandLineRunner {
 
         User user2 = new User();
         user2.setEmail("ana@example.com");
-        user2.setPassword("password123");
+        user2.setPassword(passwordEncoder.encode("password123"));
         user2.setFirstName("Ana");
         user2.setLastName("Anić");
         user2.setPhoneNumber("+381607654321");
@@ -56,7 +58,6 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
 
-        // Sedan
         Vehicle v1 = new Vehicle();
         v1.setBrand("Toyota");
         v1.setModel("Camry");
@@ -67,7 +68,6 @@ public class DataSeeder implements CommandLineRunner {
         v1.setDescription("Comfortable sedan for everyday use");
         vehicleRepository.save(v1);
 
-        // SUV
         Vehicle v2 = new Vehicle();
         v2.setBrand("Honda");
         v2.setModel("CR-V");
@@ -78,7 +78,6 @@ public class DataSeeder implements CommandLineRunner {
         v2.setDescription("Spacious SUV perfect for families");
         vehicleRepository.save(v2);
 
-        // Compact
         Vehicle v3 = new Vehicle();
         v3.setBrand("Volkswagen");
         v3.setModel("Golf");
@@ -89,7 +88,6 @@ public class DataSeeder implements CommandLineRunner {
         v3.setDescription("Economical compact car");
         vehicleRepository.save(v3);
 
-        // Luxury
         Vehicle v4 = new Vehicle();
         v4.setBrand("BMW");
         v4.setModel("5 Series");
@@ -100,7 +98,6 @@ public class DataSeeder implements CommandLineRunner {
         v4.setDescription("Premium luxury sedan");
         vehicleRepository.save(v4);
 
-        // SUV - not available
         Vehicle v5 = new Vehicle();
         v5.setBrand("Mercedes");
         v5.setModel("GLE");

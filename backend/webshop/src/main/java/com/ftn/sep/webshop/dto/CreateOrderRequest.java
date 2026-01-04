@@ -9,9 +9,6 @@ import java.time.LocalDate;
 @Data
 public class CreateOrderRequest {
 
-    @NotNull(message = "User ID is required")
-    private Long userId;
-
     @NotNull(message = "Vehicle ID is required")
     private Long vehicleId;
 
