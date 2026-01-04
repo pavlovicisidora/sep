@@ -10,9 +10,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/payment")
@@ -23,6 +26,7 @@ public class PaymentController {
     private final PaymentSessionService paymentSessionService;
     private final MerchantService merchantService;
     private final BankService bankService;
+    private final RestTemplate restTemplate;
 
     @Value("${psp.merchant.bank.id}")
     private String pspBankMerchantId;
@@ -115,14 +119,41 @@ public class PaymentController {
 
     @PostMapping("/callback")
     public ResponseEntity<String> handleBankCallback(@RequestBody PaymentCallbackRequest request) {
-        log.info("Received callback from bank for STAN: {}", request.getStan());
+        log.info("Received callback from bank for STAN: {}, Status: {}",
+                request.getStan(), request.getStatus());
 
-        // TODO: Implementirati logiku za azuriranje statusa i redirekciju korisnika
-        // 1. Naći session po STAN-u
-        // 2. Ayurirati status
-        // 3. Pozvati SUCCESS_URL ili FAILED_URL na WebShop-u
+        PaymentSession session = paymentSessionService.findByStan(request.getStan())
+                .orElseThrow(() -> new RuntimeException("Payment session not found"));
 
-        return ResponseEntity.ok("Callback received");
+        session.setGlobalTransactionId(request.getGlobalTransactionId());
+        session.setAcquirerTimestamp(request.getAcquirerTimestamp());
+
+        PaymentStatus newStatus;
+        String callbackUrl;
+
+        switch (request.getStatus()) {
+            case "SUCCESS":
+                newStatus = PaymentStatus.SUCCESS;
+                callbackUrl = session.getSuccessUrl();
+                break;
+            case "FAILED":
+                newStatus = PaymentStatus.FAILED;
+                callbackUrl = session.getFailedUrl();
+                break;
+            case "ERROR":
+            default:
+                newStatus = PaymentStatus.ERROR;
+                callbackUrl = session.getErrorUrl();
+                break;
+        }
+
+        paymentSessionService.updateStatus(session.getId(), newStatus);
+
+        log.info("Updated payment session status to: {}", newStatus);
+
+        notifyMerchant(callbackUrl, session, request);
+
+        return ResponseEntity.ok("Callback processed successfully");
     }
 
     @GetMapping("/status/{stan}")
@@ -130,5 +161,33 @@ public class PaymentController {
         return paymentSessionService.findByStan(stan)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    private void notifyMerchant(String callbackUrl, PaymentSession session,
+                                PaymentCallbackRequest bankCallback) {
+        log.info("Notifying merchant at: {}", callbackUrl);
+
+        try {
+            Map<String, Object> callbackData = new HashMap<>();
+            callbackData.put("merchantOrderId", session.getMerchantOrderId());
+            callbackData.put("stan", session.getStan());
+            callbackData.put("globalTransactionId", bankCallback.getGlobalTransactionId());
+            callbackData.put("status", bankCallback.getStatus());
+            callbackData.put("amount", session.getAmount());
+            callbackData.put("currency", session.getCurrency());
+            callbackData.put("timestamp", bankCallback.getAcquirerTimestamp());
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(callbackData, headers);
+
+            restTemplate.postForEntity(callbackUrl, entity, String.class);
+
+            log.info("Successfully notified merchant - Order ID: {}", session.getMerchantOrderId());
+
+        } catch (Exception e) {
+            log.error("Error notifying merchant at: " + callbackUrl, e);
+        }
     }
 }

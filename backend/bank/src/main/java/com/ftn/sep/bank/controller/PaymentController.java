@@ -23,6 +23,7 @@ public class PaymentController {
     private final CardValidationService cardValidationService;
     private final CardService cardService;
     private final BankAccountService bankAccountService;
+    private final PSPService pspService;
 
     @PostMapping("/create")
     public ResponseEntity<CreatePaymentResponse> createPayment(
@@ -152,6 +153,13 @@ public class PaymentController {
                     "Card validation failed"
             );
 
+            pspService.notifyPaymentResult(
+                    transaction.getStan(),
+                    transaction.getGlobalTransactionId(),
+                    transaction.getAcquirerTimestamp(),
+                    "FAILED"
+            );
+
             return ResponseEntity.badRequest()
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
@@ -171,6 +179,13 @@ public class PaymentController {
                     transaction.getId(),
                     TransactionStatus.FAILED,
                     "Insufficient funds"
+            );
+
+            pspService.notifyPaymentResult(
+                    transaction.getStan(),
+                    transaction.getGlobalTransactionId(),
+                    transaction.getAcquirerTimestamp(),
+                    "FAILED"
             );
 
             return ResponseEntity.badRequest()
@@ -195,7 +210,12 @@ public class PaymentController {
                     transaction.getGlobalTransactionId(),
                     transaction.getStan());
 
-            // TODO: Poslati callback PSP-u sa rezultatom
+            pspService.notifyPaymentResult(
+                    transaction.getStan(),
+                    transaction.getGlobalTransactionId(),
+                    transaction.getAcquirerTimestamp(),
+                    "SUCCESS"
+            );
 
             return ResponseEntity.ok(new ProcessPaymentResponse(
                     transaction.getGlobalTransactionId(),
@@ -210,6 +230,13 @@ public class PaymentController {
                     transaction.getId(),
                     TransactionStatus.ERROR,
                     e.getMessage()
+            );
+
+            pspService.notifyPaymentResult(
+                    transaction.getStan(),
+                    transaction.getGlobalTransactionId(),
+                    transaction.getAcquirerTimestamp(),
+                    "ERROR"
             );
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
