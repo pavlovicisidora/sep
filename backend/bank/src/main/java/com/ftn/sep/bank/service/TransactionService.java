@@ -61,6 +61,6 @@ public class TransactionService {
     }
 
     private String generatePaymentUrl(String paymentId) {
-        return "http://localhost:4201/payment/" + paymentId;
+        return "https://localhost:4201/payment/" + paymentId;
     }
 }

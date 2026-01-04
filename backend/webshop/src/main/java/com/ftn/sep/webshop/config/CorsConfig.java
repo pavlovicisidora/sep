@@ -19,7 +19,7 @@ public class CorsConfig {
 
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.addAllowedOrigin("http://localhost:4200");
+        config.addAllowedOrigin("https://localhost:4200");
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.setExposedHeaders(Arrays.asList("Authorization"));
@@ -28,7 +28,7 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
 
-        log.info("CORS configured for origin: http://localhost:4200");
+        log.info("CORS configured for origin: https://localhost:4200");
 
         return new CorsFilter(source);
     }

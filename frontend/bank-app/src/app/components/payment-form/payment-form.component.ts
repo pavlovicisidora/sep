@@ -132,8 +132,7 @@ export class PaymentFormComponent implements OnInit {
     this.paymentService.processPayment(request).subscribe({
       next: (response) => {
         if (response.status === 'SUCCESS') {
-          const redirectUrl = `http://localhost:4200/payment/success?paymentId=${this.paymentId}&gtx=${response.globalTransactionId}`;
-        
+          const redirectUrl = `https://localhost:4200/payment/success?paymentId=${this.paymentId}&gtx=${response.globalTransactionId}`;        
           setTimeout(() => {
             window.location.href = redirectUrl;
           }, 1500);
@@ -146,7 +145,7 @@ export class PaymentFormComponent implements OnInit {
       },
       error: (err) => {
         if (err.status === 400) {
-          const redirectUrl = `http://localhost:4200/payment/failed?paymentId=${this.paymentId}`;
+          const redirectUrl = `https://localhost:4200/payment/failed?paymentId=${this.paymentId}`;
           
           setTimeout(() => {
             window.location.href = redirectUrl;

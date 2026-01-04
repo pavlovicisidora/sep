@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Keystore files (generate locally)
+*.p12
+*.jks
+src/main/resources/*.p12
+src/main/resources/*.jks

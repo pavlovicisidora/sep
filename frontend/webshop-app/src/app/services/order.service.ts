@@ -34,7 +34,7 @@ export interface PaymentInitResponse {
   providedIn: 'root'
 })
 export class OrderService {
-  private apiUrl = 'http://localhost:8080/api/orders';
+  private apiUrl = 'https://localhost:8443/api/orders';
 
   constructor(private http: HttpClient) {}
 
