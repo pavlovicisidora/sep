@@ -1,0 +1,97 @@
+<div class="register-container">
+  <div class="register-card">
+    <h2>Create Account</h2>
+    
+    <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="firstName">First Name</label>
+          <input
+            type="text"
+            id="firstName"
+            formControlName="firstName"
+            placeholder="John"
+            [class.invalid]="f['firstName'].invalid && f['firstName'].touched"
+          >
+          <div class="error" *ngIf="f['firstName'].invalid && f['firstName'].touched">
+            <span *ngIf="f['firstName'].errors?.['required']">First name is required</span>
+            <span *ngIf="f['firstName'].errors?.['minlength']">At least 2 characters</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="lastName">Last Name</label>
+          <input
+            type="text"
+            id="lastName"
+            formControlName="lastName"
+            placeholder="Doe"
+            [class.invalid]="f['lastName'].invalid && f['lastName'].touched"
+          >
+          <div class="error" *ngIf="f['lastName'].invalid && f['lastName'].touched">
+            <span *ngIf="f['lastName'].errors?.['required']">Last name is required</span>
+            <span *ngIf="f['lastName'].errors?.['minlength']">At least 2 characters</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input
+          type="email"
+          id="email"
+          formControlName="email"
+          placeholder="your@email.com"
+          [class.invalid]="f['email'].invalid && f['email'].touched"
+        >
+        <div class="error" *ngIf="f['email'].invalid && f['email'].touched">
+          <span *ngIf="f['email'].errors?.['required']">Email is required</span>
+          <span *ngIf="f['email'].errors?.['email']">Invalid email format</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="phoneNumber">Phone Number</label>
+        <input
+          type="tel"
+          id="phoneNumber"
+          formControlName="phoneNumber"
+          placeholder="+381601234567"
+          [class.invalid]="f['phoneNumber'].invalid && f['phoneNumber'].touched"
+        >
+        <div class="error" *ngIf="f['phoneNumber'].invalid && f['phoneNumber'].touched">
+          <span *ngIf="f['phoneNumber'].errors?.['required']">Phone number is required</span>
+          <span *ngIf="f['phoneNumber'].errors?.['pattern']">Invalid phone number format</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          formControlName="password"
+          placeholder="At least 6 characters"
+          [class.invalid]="f['password'].invalid && f['password'].touched"
+        >
+        <div class="error" *ngIf="f['password'].invalid && f['password'].touched">
+          <span *ngIf="f['password'].errors?.['required']">Password is required</span>
+          <span *ngIf="f['password'].errors?.['minlength']">Password must be at least 6 characters</span>
+        </div>
+      </div>
+
+      <div class="error-message" *ngIf="error">
+        {{ error }}
+      </div>
+
+      <button type="submit" [disabled]="loading || registerForm.invalid" class="register-btn">
+        <span *ngIf="!loading">Register</span>
+        <span *ngIf="loading">Creating account...</span>
+      </button>
+    </form>
+
+    <div class="login-link">
+      Already have an account? <a routerLink="/login">Login here</a>
+    </div>
+  </div>
+</div>

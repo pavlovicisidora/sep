@@ -1,0 +1,94 @@
+<div class="catalog-container">
+  <nav class="navbar">
+    <div class="navbar-content">
+      <h1>Car Rental Agency</h1>
+      <div class="navbar-actions">
+        <span class="user-name">{{ currentUser?.firstName }} {{ currentUser?.lastName }}</span>
+        <button (click)="goToMyOrders()" class="nav-btn">My Orders</button>
+        <button (click)="logout()" class="logout-btn">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="content">
+    <h2>Available Vehicles</h2>
+
+    <div *ngIf="loading" class="loading">
+      <p>Loading vehicles...</p>
+    </div>
+
+    <div *ngIf="!loading && vehicles.length === 0" class="no-vehicles">
+      <p>No vehicles available at the moment.</p>
+    </div>
+
+    <div class="vehicle-grid" *ngIf="!loading && vehicles.length > 0">
+      <div class="vehicle-card" *ngFor="let vehicle of vehicles">
+        <div class="vehicle-image">
+          <img [src]="vehicle.imageUrl || 'https://via.placeholder.com/300x200?text=' + vehicle.brand" 
+               [alt]="vehicle.brand + ' ' + vehicle.model">
+        </div>
+        <div class="vehicle-info">
+          <h3>{{ vehicle.brand }} {{ vehicle.model }}</h3>
+          <p class="year">{{ vehicle.year }}</p>
+          <p class="category">{{ vehicle.category }}</p>
+          <p class="description">{{ vehicle.description }}</p>
+          <div class="price-section">
+            <span class="price">{{ vehicle.pricePerDay | number:'1.0-0' }} RSD</span>
+            <span class="per-day">/ day</span>
+          </div>
+          <button (click)="openBookingModal(vehicle)" class="book-btn">
+            Book Now
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Booking Modal -->
+  <div class="modal-overlay" *ngIf="showBookingModal" (click)="closeBookingModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <h2>Book {{ selectedVehicle?.brand }} {{ selectedVehicle?.model }}</h2>
+      
+      <form [formGroup]="bookingForm">
+        <div class="form-group">
+          <label for="rentalStartDate">Start Date</label>
+          <input
+            type="date"
+            id="rentalStartDate"
+            formControlName="rentalStartDate"
+            [min]="getTomorrowDate()"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="rentalEndDate">End Date</label>
+          <input
+            type="date"
+            id="rentalEndDate"
+            formControlName="rentalEndDate"
+            [min]="bookingForm.value.rentalStartDate"
+          >
+        </div>
+
+        <div class="booking-summary" *ngIf="bookingForm.valid">
+          <p><strong>Daily Rate:</strong> {{ selectedVehicle?.pricePerDay | number:'1.0-0' }} RSD</p>
+          <p><strong>Total Price:</strong> {{ calculateTotalPrice() | number:'1.0-0' }} RSD</p>
+        </div>
+
+        <div class="error-message" *ngIf="error">
+          {{ error }}
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" (click)="closeBookingModal()" class="cancel-btn" [disabled]="processingOrder">
+            Cancel
+          </button>
+          <button type="button" (click)="onBookVehicle()" class="confirm-btn" [disabled]="processingOrder || bookingForm.invalid">
+            <span *ngIf="!processingOrder">Proceed to Payment</span>
+            <span *ngIf="processingOrder">Processing...</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

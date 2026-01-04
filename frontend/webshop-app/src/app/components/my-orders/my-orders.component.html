@@ -1,0 +1,72 @@
+<div class="orders-container">
+  <nav class="navbar">
+    <div class="navbar-content">
+      <h1>Car Rental Agency</h1>
+      <div class="navbar-actions">
+        <span class="user-name">{{ currentUser?.firstName }} {{ currentUser?.lastName }}</span>
+        <button (click)="goToVehicles()" class="nav-btn">Browse Vehicles</button>
+        <button (click)="logout()" class="logout-btn">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="content">
+    <h2>My Orders</h2>
+
+    <div *ngIf="loading" class="loading">
+      <p>Loading your orders...</p>
+    </div>
+
+    <div *ngIf="!loading && orders.length === 0" class="no-orders">
+      <p>You don't have any orders yet.</p>
+      <button (click)="goToVehicles()" class="browse-btn">Browse Vehicles</button>
+    </div>
+
+    <div class="orders-list" *ngIf="!loading && orders.length > 0">
+      <div class="order-card" *ngFor="let order of orders">
+        <div class="order-header">
+          <h3>{{ order.vehicleName }}</h3>
+          <span class="status-badge" [ngClass]="getStatusClass(order.status)">
+            {{ order.status }}
+          </span>
+        </div>
+
+        <div class="order-details">
+          <div class="detail-row">
+            <span class="label">Order ID:</span>
+            <span class="value">{{ order.merchantOrderId }}</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="label">Rental Period:</span>
+            <span class="value">
+              {{ order.rentalStartDate | date:'dd/MM/yyyy' }} - 
+              {{ order.rentalEndDate | date:'dd/MM/yyyy' }}
+            </span>
+          </div>
+
+          <div class="detail-row">
+            <span class="label">Total Price:</span>
+            <span class="value price">{{ order.totalPrice | number:'1.0-0' }} {{ order.currency }}</span>
+          </div>
+
+          <div class="detail-row">
+            <span class="label">Created:</span>
+            <span class="value">{{ order.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+
+          <div class="detail-row" *ngIf="order.status === 'PAID'">
+            <span class="label">Transaction ID:</span>
+            <span class="value transaction-id">{{ order.id }}</span>
+          </div>
+        </div>
+
+        <div class="order-actions" *ngIf="canPay(order)">
+          <button (click)="payOrder(order.id)" class="pay-btn">
+            Complete Payment
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

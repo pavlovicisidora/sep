@@ -5,6 +5,7 @@ import com.ftn.sep.webshop.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -30,12 +31,13 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
-                                "/api/auth/**",           // Login/Register public
-                                "/api/health",            // Health check public
-                                "/api/vehicles",          // Pregled vozila public
-                                "/api/vehicles/**",       // Detalji vozila public
-                                "/api/payment/callback/**" // PSP callbacks public
+                                "/api/auth/**",
+                                "/api/health",
+                                "/api/vehicles",
+                                "/api/vehicles/**",
+                                "/api/payment/callback/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
