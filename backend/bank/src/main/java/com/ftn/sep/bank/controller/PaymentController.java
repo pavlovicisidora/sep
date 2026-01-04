@@ -5,10 +5,12 @@ import com.ftn.sep.bank.model.BankAccount;
 import com.ftn.sep.bank.model.BankTransaction;
 import com.ftn.sep.bank.model.CardInfo;
 import com.ftn.sep.bank.model.TransactionStatus;
+import com.ftn.sep.bank.security.HmacUtil;
 import com.ftn.sep.bank.service.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,14 +26,48 @@ public class PaymentController {
     private final CardService cardService;
     private final BankAccountService bankAccountService;
     private final PSPService pspService;
+    private final HmacUtil hmacUtil;
+
+    @Value("${psp.merchant.bank.id}")
+    private String merchantId;
 
     @PostMapping("/create")
     public ResponseEntity<CreatePaymentResponse> createPayment(
-            @Valid @RequestBody CreatePaymentRequest request) {
+            @RequestBody CreatePaymentRequest request,
+            @RequestHeader(value = "X-PSP-Signature", required = false) String signature) {
 
         log.info("Received payment creation request from PSP - STAN: {}", request.getStan());
 
-        // TODO: Validacija merchantId (PSP) - za sada preskačemo
+        if (signature == null || signature.isEmpty()) {
+            log.error("Missing HMAC signature in request");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new CreatePaymentResponse(null, null, "UNAUTHORIZED",
+                            "Missing authentication signature"));
+        }
+
+        String payload = hmacUtil.createPayload(
+                request.getMerchantId(),
+                request.getAmount().toString(),
+                request.getCurrency(),
+                request.getStan(),
+                request.getPspTimestamp().toString()
+        );
+
+        if (!hmacUtil.validateSignature(payload, signature)) {
+            log.error("Invalid HMAC signature for STAN: {}", request.getStan());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new CreatePaymentResponse(null, null, "UNAUTHORIZED",
+                            "Invalid authentication signature"));
+        }
+
+        log.info("HMAC signature validated successfully for STAN: {}", request.getStan());
+
+        if (!merchantId.equals(request.getMerchantId())) {
+            log.error("Invalid merchant ID: {}", request.getMerchantId());
+            return ResponseEntity.badRequest()
+                    .body(new CreatePaymentResponse(null, null, "INVALID_MERCHANT",
+                            "Invalid merchant credentials"));
+        }
 
         BankTransaction transaction = new BankTransaction();
         transaction.setMerchantId(request.getMerchantId());

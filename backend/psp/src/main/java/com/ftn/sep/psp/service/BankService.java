@@ -2,6 +2,7 @@ package com.ftn.sep.psp.service;
 
 import com.ftn.sep.psp.dto.BankPaymentRequest;
 import com.ftn.sep.psp.dto.BankPaymentResponse;
+import com.ftn.sep.psp.security.HmacUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,12 +13,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class BankService {
 
     private final RestTemplate restTemplate;
+    private final HmacUtil hmacUtil;
 
     @Value("${bank.api.url}")
     private String bankApiUrl;
@@ -27,38 +32,41 @@ public class BankService {
 
         log.info("Calling Bank API to create payment session - STAN: {}", request.getStan());
 
+        String payload = hmacUtil.createPayload(
+                request.getMerchantId(),
+                request.getAmount().toString(),
+                request.getCurrency(),
+                request.getStan(),
+                request.getPspTimestamp().toString()
+        );
+        String signature = hmacUtil.generateSignature(payload);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-PSP-Signature", signature);
+
+        HttpEntity<BankPaymentRequest> entity = new HttpEntity<>(request, headers);
+
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            HttpEntity<BankPaymentRequest> entity = new HttpEntity<>(request, headers);
-
             ResponseEntity<BankPaymentResponse> response = restTemplate.postForEntity(
                     url,
                     entity,
                     BankPaymentResponse.class
             );
 
-            BankPaymentResponse bankResponse = response.getBody();
-
-            if (bankResponse != null && "SUCCESS".equals(bankResponse.getStatus())) {
+            BankPaymentResponse responseBody = response.getBody();
+            if (responseBody != null) {
                 log.info("Successfully received payment URL from Bank - Payment ID: {}",
-                        bankResponse.getPaymentId());
+                        responseBody.getPaymentId());
+                return responseBody;
             } else {
-                log.error("Bank returned non-success status: {}",
-                        bankResponse != null ? bankResponse.getStatus() : "null");
+                throw new RuntimeException("Empty response from Bank");
             }
-
-            return bankResponse;
 
         } catch (Exception e) {
             log.error("Error calling Bank API", e);
-            throw new RuntimeException("Failed to communicate with Bank: " + e.getMessage());
+            throw new RuntimeException("Failed to create payment session with Bank", e);
         }
     }
 
-    public void notifyPaymentResult(String stan, String status) {
-        log.info("Received payment notification from Bank - STAN: {}, Status: {}", stan, status);
-        // TODO: implementiraj logiku za azuriranje statusa i notifikaciju WebShop-a - bank poziva kad se zavrsi placanje
-    }
 }

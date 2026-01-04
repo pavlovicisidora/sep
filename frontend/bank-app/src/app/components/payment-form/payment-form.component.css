@@ -30,17 +30,21 @@
 
 .card-logos {
   display: flex;
-  gap: 10px;
+  gap: 15px;
+  align-items: center;
 }
 
-.card-logos img {
-  height: 30px;
+.card-logo {
+  height: 35px;
   opacity: 0.3;
-  transition: opacity 0.3s;
+  transition: all 0.3s ease;
+  filter: grayscale(100%);
 }
 
-.card-logos img.active {
+.card-logo.active {
   opacity: 1;
+  filter: grayscale(0%);
+  transform: scale(1.1);
 }
 
 .payment-info {
