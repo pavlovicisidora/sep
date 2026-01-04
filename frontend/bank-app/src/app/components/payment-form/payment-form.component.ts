@@ -132,15 +132,30 @@ export class PaymentFormComponent implements OnInit {
     this.paymentService.processPayment(request).subscribe({
       next: (response) => {
         if (response.status === 'SUCCESS') {
-          // TODO: Redirect to success page
-          alert('Payment successful! Transaction ID: ' + response.globalTransactionId);
+          const redirectUrl = `http://localhost:4200/payment/success?paymentId=${this.paymentId}&gtx=${response.globalTransactionId}`;
+        
+          setTimeout(() => {
+            window.location.href = redirectUrl;
+          }, 1500);
+          
+          alert('Payment successful! Redirecting to store...');
         } else {
           this.error = response.message;
         }
         this.processing = false;
       },
       error: (err) => {
-        this.error = err.error?.message || 'Payment processing failed';
+        if (err.status === 400) {
+          const redirectUrl = `http://localhost:4200/payment/failed?paymentId=${this.paymentId}`;
+          
+          setTimeout(() => {
+            window.location.href = redirectUrl;
+          }, 1500);
+          
+          this.error = err.error?.message || 'Payment failed';
+        } else {
+          this.error = err.error?.message || 'Payment processing error';
+        }
         this.processing = false;
         console.error('Payment error:', err);
       }

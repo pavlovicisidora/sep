@@ -1,0 +1,31 @@
+<div class="failed-container">
+  <div class="failed-card">
+    <div class="failed-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+      </svg>
+    </div>
+    
+    <h1>Payment Failed</h1>
+    <p class="message">
+      We couldn't process your payment. This could be due to insufficient funds, 
+      invalid card details, or a technical issue.
+    </p>
+    
+    <div class="details" *ngIf="paymentId">
+      <div class="detail-row">
+        <span class="label">Payment ID:</span>
+        <span class="value">{{ paymentId }}</span>
+      </div>
+    </div>
+    
+    <div class="actions">
+      <button (click)="tryAgain()" class="retry-btn">
+        Try Again
+      </button>
+      <button (click)="goToHome()" class="home-btn">
+        Return to Home
+      </button>
+    </div>
+  </div>
+</div>
