@@ -31,13 +31,6 @@
           </span>
         </div>
 
-          <div class="status-info" *ngIf="order.status === 'PROCESSING'">
-            <div class="polling-indicator">
-              <div class="spinner-small"></div>
-              <span>Checking payment status...</span>
-            </div>
-          </div>
-
         <div class="order-details">
           <div class="detail-row">
             <span class="label">Order ID:</span>
@@ -68,9 +61,26 @@
           </div>
         </div>
 
-        <div class="order-actions" *ngIf="canPay(order)">
-          <button (click)="payOrder(order.id)" class="pay-btn">
+        <div class="order-actions" *ngIf="canPay(order) || canCheckStatus(order)">
+          <button 
+            *ngIf="canPay(order)" 
+            (click)="payOrder(order.id)" 
+            class="pay-btn"
+          >
             Complete Payment
+          </button>
+          
+          <button 
+            *ngIf="canCheckStatus(order)" 
+            (click)="checkPaymentStatusWithPSP(order.id)" 
+            class="check-status-btn"
+            [disabled]="isCheckingStatus(order.id)"
+          >
+            <span *ngIf="!isCheckingStatus(order.id)">Check Payment Status</span>
+            <span *ngIf="isCheckingStatus(order.id)" class="checking-text">
+              <span class="spinner-tiny"></span>
+              Checking...
+            </span>
           </button>
         </div>
       </div>

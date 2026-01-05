@@ -238,3 +238,83 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+.check-status-btn {
+  padding: 12px 24px;
+  background: #f0f0f0;
+  color: #333;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 10px;
+}
+
+.check-status-btn:hover {
+  background: #667eea;
+  border-color: #667eea;
+  color: white;
+}
+
+.order-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 2px solid #f0f0f0;
+}
+
+.check-status-btn {
+  padding: 12px 24px;
+  background: #f0f0f0;
+  color: #333;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 10px;
+}
+
+.check-status-btn:hover:not(:disabled) {
+  background: #667eea;
+  border-color: #667eea;
+  color: white;
+}
+
+.check-status-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checking-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner-tiny {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.order-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 2px solid #f0f0f0;
+}

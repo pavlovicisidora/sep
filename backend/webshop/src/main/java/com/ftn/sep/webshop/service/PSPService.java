@@ -78,4 +78,18 @@ public class PSPService {
             throw new RuntimeException("Failed to initialize payment: " + e.getMessage());
         }
     }
+
+    public Map<String, Object> checkPaymentStatus(String merchantOrderId) {
+        String url = pspApiUrl + "/api/payment/status/order/" + merchantOrderId;
+
+        log.info("Checking payment status for Merchant Order: {}", merchantOrderId);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("Error checking payment status", e);
+            throw new RuntimeException("Failed to check payment status with PSP", e);
+        }
+    }
 }

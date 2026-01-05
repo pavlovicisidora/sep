@@ -1,9 +1,8 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { OrderService, Order } from '../../services/order.service';
-import { interval, Subscription, switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-my-orders',
@@ -12,11 +11,11 @@ import { interval, Subscription, switchMap } from 'rxjs';
   templateUrl: './my-orders.component.html',
   styleUrls: ['./my-orders.component.css']
 })
-export class MyOrdersComponent implements OnInit, OnDestroy {
+export class MyOrdersComponent implements OnInit {
   orders: Order[] = [];
   loading = true;
+  checkingStatus: { [orderId: number]: boolean } = {}; 
   currentUser = this.authService.getCurrentUser();
-  private pollingSubscription?: Subscription;
 
   constructor(
     private orderService: OrderService,
@@ -26,13 +25,6 @@ export class MyOrdersComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadOrders();
-    this.startPollingForProcessingOrders();
-  }
-
-  ngOnDestroy(): void {
-    if (this.pollingSubscription) {
-      this.pollingSubscription.unsubscribe();
-    }
   }
 
   loadOrders(): void {
@@ -50,57 +42,51 @@ export class MyOrdersComponent implements OnInit, OnDestroy {
     });
   }
 
-  startPollingForProcessingOrders(): void {
-    this.pollingSubscription = interval(10000)
-      .pipe(
-        switchMap(() => this.orderService.getMyOrders())
-      )
-      .subscribe({
-        next: (data) => {
-          const processingOrders = data.filter(o => o.status === 'PROCESSING');
-          
-          if (processingOrders.length > 0) {
-            console.log(`Polling: ${processingOrders.length} orders in PROCESSING status`);
-            
-            processingOrders.forEach(order => {
-              this.checkOrderStatus(order.id);
-            });
-          } else {
-            console.log('No processing orders, stopping poll');
-          }
-          
-          this.orders = data.sort((a, b) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-        },
-        error: (err) => {
-          console.error('Error polling orders', err);
-        }
-      });
-  }
-
-  checkOrderStatus(orderId: number): void {
-    this.orderService.checkOrderStatus(orderId).subscribe({
+  checkPaymentStatusWithPSP(orderId: number): void {
+    this.checkingStatus[orderId] = true;
+    
+    this.orderService.checkPaymentStatusWithPSP(orderId).subscribe({
       next: (status) => {
-        console.log(`Order ${orderId} status:`, status);
+        console.log('Payment status checked with PSP:', status);
         
-        const currentOrder = this.orders.find(o => o.id === orderId);
-        if (currentOrder && currentOrder.status !== status.status) {
-          console.log(`Status changed from ${currentOrder.status} to ${status.status}`);
-          this.loadOrders();
+        this.loadOrders();
+        
+        this.checkingStatus[orderId] = false;
+        
+        if (status.status === 'SUCCESS') {
+          alert('Payment confirmed! Your order is now PAID.');
+        } else if (status.status === 'FAILED') {
+          alert('Payment failed. Please try again.');
+        } else {
+          alert('Payment is still pending. Please wait or try paying again.');
         }
       },
       error: (err) => {
-        console.error(`Error checking status for order ${orderId}`, err);
+        console.error('Error checking payment status with PSP', err);
+        this.checkingStatus[orderId] = false;
+        alert('Failed to check payment status. Please try again later.');
       }
     });
+  }
+
+  canCheckStatus(order: Order): boolean {
+    if (order.status !== 'PENDING') return false;
+    
+    const attemptTime = order.lastPaymentAttempt || order.createdAt;
+    const age = Date.now() - new Date(attemptTime).getTime();
+    const thirtyMinutes = 30 * 60 * 1000;
+    
+    return age < thirtyMinutes;
+  }
+
+  isCheckingStatus(orderId: number): boolean {
+    return this.checkingStatus[orderId] || false;
   }
 
   getStatusClass(status: string): string {
     switch (status) {
       case 'PAID': return 'status-paid';
       case 'PENDING': return 'status-pending';
-      case 'PROCESSING': return 'status-processing';
       case 'FAILED': return 'status-failed';
       case 'CANCELLED': return 'status-cancelled';
       default: return '';

@@ -20,6 +20,7 @@ export interface Order {
   status: string;
   merchantOrderId: string;
   createdAt: string;
+  lastPaymentAttempt?: string; 
 }
 
 export interface PaymentInitResponse {
@@ -61,5 +62,9 @@ export class OrderService {
 
   checkOrderStatus(orderId: number): Observable<OrderStatus> {
     return this.http.get<OrderStatus>(`${this.apiUrl}/${orderId}/status`);
+  }
+
+  checkPaymentStatusWithPSP(orderId: number): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${orderId}/check-payment-status`, {});
   }
 }

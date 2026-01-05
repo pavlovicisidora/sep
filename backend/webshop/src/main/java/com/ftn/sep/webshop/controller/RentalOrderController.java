@@ -110,7 +110,11 @@ public class RentalOrderController {
                     order.getCurrency()
             );
 
-            log.info("Payment URL generated for order {} - waiting for payment completion", orderId);
+            order.setLastPaymentAttempt(LocalDateTime.now());
+            rentalOrderService.save(order);
+
+            log.info("Payment URL generated for order {} with merchant order ID: {}",
+                    orderId, order.getMerchantOrderId());
 
             return ResponseEntity.ok(pspResponse);
 
@@ -143,6 +147,42 @@ public class RentalOrderController {
         statusInfo.put("globalTransactionId", order.getGlobalTransactionId());
 
         return ResponseEntity.ok(statusInfo);
+    }
+
+    @PostMapping("/{orderId}/check-payment-status")
+    public ResponseEntity<?> checkPaymentStatusWithPSP(@PathVariable Long orderId) {
+        String currentUserEmail = SecurityUtils.getCurrentUserEmail();
+        User currentUser = userService.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        RentalOrder order = rentalOrderService.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (!order.getUser().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        try {
+            Map<String, Object> pspStatus = pspService.checkPaymentStatus(order.getMerchantOrderId());
+
+            String status = (String) pspStatus.get("status");
+
+            if ("SUCCESS".equals(status)) {
+                String globalTransactionId = (String) pspStatus.get("globalTransactionId");
+                order.setGlobalTransactionId(globalTransactionId);
+                rentalOrderService.updateOrderStatus(orderId, OrderStatus.PAID);
+                log.info("Order {} status updated to PAID after manual check", orderId);
+            } else if ("FAILED".equals(status)) {
+                rentalOrderService.updateOrderStatus(orderId, OrderStatus.FAILED);
+                log.info("Order {} status updated to FAILED after manual check", orderId);
+            }
+
+            return ResponseEntity.ok(pspStatus);
+
+        } catch (Exception e) {
+            log.error("Error checking payment status with PSP", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to check payment status"));
+        }
     }
 
     private OrderResponse mapToResponse(RentalOrder order) {

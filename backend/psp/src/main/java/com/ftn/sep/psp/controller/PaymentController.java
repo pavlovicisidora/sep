@@ -173,6 +173,24 @@ public class PaymentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/status/order/{merchantOrderId}")
+    public ResponseEntity<?> getPaymentStatusByMerchantOrderId(@PathVariable String merchantOrderId) {
+        log.info("Checking payment status for merchant order: {}", merchantOrderId);
+
+        return paymentSessionService.findByMerchantOrderId(merchantOrderId)
+                .map(session -> {
+                    Map<String, Object> status = new HashMap<>();
+                    status.put("merchantOrderId", session.getMerchantOrderId());
+                    status.put("status", session.getStatus());
+                    status.put("amount", session.getAmount());
+                    status.put("currency", session.getCurrency());
+                    status.put("globalTransactionId", session.getGlobalTransactionId());
+                    status.put("createdAt", session.getCreatedAt());
+                    return ResponseEntity.ok(status);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     private void notifyMerchant(String callbackUrl, PaymentSession session,
                                 PaymentCallbackRequest bankCallback) {
         log.info("Notifying merchant at: {}", callbackUrl);
