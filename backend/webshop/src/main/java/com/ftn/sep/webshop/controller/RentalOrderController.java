@@ -18,6 +18,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -108,7 +110,7 @@ public class RentalOrderController {
                     order.getCurrency()
             );
 
-            rentalOrderService.updateOrderStatus(orderId, OrderStatus.PROCESSING);
+            log.info("Payment URL generated for order {} - waiting for payment completion", orderId);
 
             return ResponseEntity.ok(pspResponse);
 
@@ -117,6 +119,30 @@ public class RentalOrderController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to initiate payment"));
         }
+    }
+
+    @GetMapping("/{orderId}/status")
+    public ResponseEntity<?> checkOrderStatus(@PathVariable Long orderId) {
+        String currentUserEmail = SecurityUtils.getCurrentUserEmail();
+        User currentUser = userService.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        RentalOrder order = rentalOrderService.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (!order.getUser().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        Map<String, Object> statusInfo = new HashMap<>();
+        statusInfo.put("orderId", order.getId());
+        statusInfo.put("merchantOrderId", order.getMerchantOrderId());
+        statusInfo.put("status", order.getStatus());
+        statusInfo.put("amount", order.getTotalPrice());
+        statusInfo.put("currency", order.getCurrency());
+        statusInfo.put("globalTransactionId", order.getGlobalTransactionId());
+
+        return ResponseEntity.ok(statusInfo);
     }
 
     private OrderResponse mapToResponse(RentalOrder order) {

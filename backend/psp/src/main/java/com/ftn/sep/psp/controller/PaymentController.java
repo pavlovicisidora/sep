@@ -159,7 +159,17 @@ public class PaymentController {
     @GetMapping("/status/{stan}")
     public ResponseEntity<?> getPaymentStatus(@PathVariable String stan) {
         return paymentSessionService.findByStan(stan)
-                .map(ResponseEntity::ok)
+                .map(session -> {
+                    Map<String, Object> status = new HashMap<>();
+                    status.put("stan", session.getStan());
+                    status.put("merchantOrderId", session.getMerchantOrderId());
+                    status.put("status", session.getStatus());
+                    status.put("amount", session.getAmount());
+                    status.put("currency", session.getCurrency());
+                    status.put("globalTransactionId", session.getGlobalTransactionId());
+                    status.put("createdAt", session.getCreatedAt());
+                    return ResponseEntity.ok(status);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 

@@ -30,6 +30,15 @@ export interface PaymentInitResponse {
   message: string;
 }
 
+export interface OrderStatus {
+  orderId: number;
+  merchantOrderId: string;
+  status: string;
+  amount: number;
+  currency: string;
+  globalTransactionId: string | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -48,5 +57,9 @@ export class OrderService {
 
   initiatePayment(orderId: number): Observable<PaymentInitResponse> {
     return this.http.post<PaymentInitResponse>(`${this.apiUrl}/${orderId}/pay`, {});
+  }
+
+  checkOrderStatus(orderId: number): Observable<OrderStatus> {
+    return this.http.get<OrderStatus>(`${this.apiUrl}/${orderId}/status`);
   }
 }

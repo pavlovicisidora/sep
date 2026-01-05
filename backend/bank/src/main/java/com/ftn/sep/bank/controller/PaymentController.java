@@ -234,6 +234,8 @@ public class PaymentController {
         }
 
         try {
+            log.info("Balance before the payment: {}", account.getBalance());
+
             bankAccountService.reserveFunds(account, transaction.getAmount());
             transaction.setAccount(account);
             transactionService.updateTransactionStatus(
@@ -245,6 +247,7 @@ public class PaymentController {
             log.info("Payment successful - GTX: {}, STAN: {}",
                     transaction.getGlobalTransactionId(),
                     transaction.getStan());
+            log.info("Balance after the payment: {}", account.getBalance());
 
             pspService.notifyPaymentResult(
                     transaction.getStan(),

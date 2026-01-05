@@ -1,8 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { OrderService, Order } from '../../services/order.service';
+import { interval, Subscription, switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-my-orders',
@@ -11,10 +12,11 @@ import { OrderService, Order } from '../../services/order.service';
   templateUrl: './my-orders.component.html',
   styleUrls: ['./my-orders.component.css']
 })
-export class MyOrdersComponent implements OnInit {
+export class MyOrdersComponent implements OnInit, OnDestroy {
   orders: Order[] = [];
   loading = true;
   currentUser = this.authService.getCurrentUser();
+  private pollingSubscription?: Subscription;
 
   constructor(
     private orderService: OrderService,
@@ -24,6 +26,13 @@ export class MyOrdersComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadOrders();
+    this.startPollingForProcessingOrders();
+  }
+
+  ngOnDestroy(): void {
+    if (this.pollingSubscription) {
+      this.pollingSubscription.unsubscribe();
+    }
   }
 
   loadOrders(): void {
@@ -37,6 +46,52 @@ export class MyOrdersComponent implements OnInit {
       error: (err) => {
         console.error('Error loading orders', err);
         this.loading = false;
+      }
+    });
+  }
+
+  startPollingForProcessingOrders(): void {
+    this.pollingSubscription = interval(10000)
+      .pipe(
+        switchMap(() => this.orderService.getMyOrders())
+      )
+      .subscribe({
+        next: (data) => {
+          const processingOrders = data.filter(o => o.status === 'PROCESSING');
+          
+          if (processingOrders.length > 0) {
+            console.log(`Polling: ${processingOrders.length} orders in PROCESSING status`);
+            
+            processingOrders.forEach(order => {
+              this.checkOrderStatus(order.id);
+            });
+          } else {
+            console.log('No processing orders, stopping poll');
+          }
+          
+          this.orders = data.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        },
+        error: (err) => {
+          console.error('Error polling orders', err);
+        }
+      });
+  }
+
+  checkOrderStatus(orderId: number): void {
+    this.orderService.checkOrderStatus(orderId).subscribe({
+      next: (status) => {
+        console.log(`Order ${orderId} status:`, status);
+        
+        const currentOrder = this.orders.find(o => o.id === orderId);
+        if (currentOrder && currentOrder.status !== status.status) {
+          console.log(`Status changed from ${currentOrder.status} to ${status.status}`);
+          this.loadOrders();
+        }
+      },
+      error: (err) => {
+        console.error(`Error checking status for order ${orderId}`, err);
       }
     });
   }
