@@ -51,6 +51,8 @@ public class RentalOrder {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    private LocalDateTime lastPaymentAttempt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

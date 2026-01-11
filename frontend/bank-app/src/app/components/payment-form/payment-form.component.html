@@ -1,0 +1,113 @@
+<div class="payment-container">
+  <div class="payment-card">
+    <div class="header">
+      <h2>Secure Payment</h2>
+      <div class="card-logos">
+        <img 
+          src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" 
+          alt="Visa" 
+          [class.active]="cardType === 'visa'"
+          class="card-logo"
+        >
+        <img 
+          src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" 
+          alt="Mastercard" 
+          [class.active]="cardType === 'mastercard'"
+          class="card-logo"
+        >
+      </div>
+    </div>
+
+    <div *ngIf="loading" class="loading">
+      <p>Loading payment information...</p>
+    </div>
+
+    <div *ngIf="!loading && error" class="error-message">
+      <p>{{ error }}</p>
+    </div>
+
+    <div *ngIf="!loading && paymentData && !paymentData.expired">
+      <div class="payment-info">
+        <p><strong>Amount:</strong> {{ paymentData.amount | number:'1.2-2' }} {{ paymentData.currency }}</p>
+      </div>
+
+      <form [formGroup]="paymentForm" (ngSubmit)="onSubmit()">
+        <div class="form-group">
+          <label for="pan">Card Number</label>
+          <input
+            type="text"
+            id="pan"
+            formControlName="pan"
+            placeholder="0000 0000 0000 0000"
+            maxlength="23"
+            (input)="formatPan($event)"
+            [class.invalid]="f['pan'].invalid && f['pan'].touched"
+          >
+          <div class="error" *ngIf="f['pan'].invalid && f['pan'].touched">
+            <span *ngIf="f['pan'].errors?.['required']">Card number is required</span>
+            <span *ngIf="f['pan'].errors?.['invalidPan']">Invalid card number</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cardHolderName">Cardholder Name</label>
+          <input
+            type="text"
+            id="cardHolderName"
+            formControlName="cardHolderName"
+            placeholder="JOHN DOE"
+            [class.invalid]="f['cardHolderName'].invalid && f['cardHolderName'].touched"
+          >
+          <div class="error" *ngIf="f['cardHolderName'].invalid && f['cardHolderName'].touched">
+            <span *ngIf="f['cardHolderName'].errors?.['required']">Cardholder name is required</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="expiryDate">Expiry Date</label>
+            <input
+              type="text"
+              id="expiryDate"
+              formControlName="expiryDate"
+              placeholder="MM/YY"
+              maxlength="5"
+              (input)="formatExpiryDate($event)"
+              [class.invalid]="f['expiryDate'].invalid && f['expiryDate'].touched"
+            >
+            <div class="error" *ngIf="f['expiryDate'].invalid && f['expiryDate'].touched">
+              <span *ngIf="f['expiryDate'].errors?.['required']">Expiry date is required</span>
+              <span *ngIf="f['expiryDate'].errors?.['invalidFormat']">Format: MM/YY</span>
+              <span *ngIf="f['expiryDate'].errors?.['expired']">Card has expired</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="securityCode">CVV</label>
+            <input
+              type="text"
+              id="securityCode"
+              formControlName="securityCode"
+              placeholder="123"
+              maxlength="4"
+              [class.invalid]="f['securityCode'].invalid && f['securityCode'].touched"
+            >
+            <div class="error" *ngIf="f['securityCode'].invalid && f['securityCode'].touched">
+              <span *ngIf="f['securityCode'].errors?.['required']">CVV is required</span>
+              <span *ngIf="f['securityCode'].errors?.['pattern']">Invalid CVV</span>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" [disabled]="processing || paymentForm.invalid" class="submit-btn">
+          <span *ngIf="!processing">Pay {{ paymentData.amount | number:'1.2-2' }} {{ paymentData.currency }}</span>
+          <span *ngIf="processing">Processing...</span>
+        </button>
+      </form>
+
+      <div class="security-notice">
+        <p>🔒 Your payment information is secure and encrypted</p>
+      </div>
+    </div>
+  </div>
+</div>

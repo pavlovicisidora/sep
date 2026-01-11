@@ -1,0 +1,27 @@
+<div class="success-container">
+  <div class="success-card">
+    <div class="success-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+      </svg>
+    </div>
+    
+    <h1>Payment Successful!</h1>
+    <p class="message">Your rental has been confirmed. We've sent a confirmation email to your address.</p>
+    
+    <div class="details">
+      <div class="detail-row">
+        <span class="label">Payment ID:</span>
+        <span class="value">{{ paymentId }}</span>
+      </div>
+      <div class="detail-row" *ngIf="globalTransactionId">
+        <span class="label">Transaction ID:</span>
+        <span class="value">{{ globalTransactionId }}</span>
+      </div>
+    </div>
+    
+    <button (click)="goToHome()" class="home-btn">
+      Return to Home
+    </button>
+  </div>
+</div>

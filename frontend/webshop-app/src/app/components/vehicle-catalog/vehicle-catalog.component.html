@@ -1,0 +1,144 @@
+<div class="catalog-container">
+  <nav class="navbar">
+    <div class="navbar-content">
+      <h1>Car Rental Agency</h1>
+      <div class="navbar-actions">
+        <span class="user-name">{{ currentUser?.firstName }} {{ currentUser?.lastName }}</span>
+        <button (click)="goToMyOrders()" class="nav-btn">My Orders</button>
+        <button (click)="logout()" class="logout-btn">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="content">
+    <h2>Available Vehicles</h2>
+
+    <div *ngIf="loading" class="loading">
+      <p>Loading vehicles...</p>
+    </div>
+
+    <div *ngIf="!loading && vehicles.length === 0" class="no-vehicles">
+      <p>No vehicles available at the moment.</p>
+    </div>
+
+    <div class="vehicle-grid" *ngIf="!loading && vehicles.length > 0">
+      <div class="vehicle-card" *ngFor="let vehicle of vehicles">
+        <div class="vehicle-image">
+          <img [src]="vehicle.imageUrl || 'https://via.placeholder.com/300x200?text=' + vehicle.brand" 
+               [alt]="vehicle.brand + ' ' + vehicle.model">
+        </div>
+        <div class="vehicle-info">
+          <h3>{{ vehicle.brand }} {{ vehicle.model }}</h3>
+          <p class="year">{{ vehicle.year }}</p>
+          <p class="category">{{ vehicle.category }}</p>
+          <p class="description">{{ vehicle.description }}</p>
+          <div class="price-section">
+            <span class="price">{{ vehicle.pricePerDay | number:'1.0-0' }} RSD</span>
+            <span class="per-day">/ day</span>
+          </div>
+          <button (click)="openBookingModal(vehicle)" class="book-btn">
+            Book Now
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Booking Modal -->
+  <div class="modal-overlay" *ngIf="showBookingModal" (click)="closeBookingModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      
+      <!-- Step 1: Booking Details -->
+      <div *ngIf="!showPaymentMethodSelection && !processingOrder">
+        <h2>Book {{ selectedVehicle?.brand }} {{ selectedVehicle?.model }}</h2>
+        
+        <form [formGroup]="bookingForm">
+          <div class="form-group">
+            <label for="rentalStartDate">Start Date</label>
+            <input
+              type="date"
+              id="rentalStartDate"
+              formControlName="rentalStartDate"
+              [min]="getTomorrowDate()"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="rentalEndDate">End Date</label>
+            <input
+              type="date"
+              id="rentalEndDate"
+              formControlName="rentalEndDate"
+              [min]="bookingForm.value.rentalStartDate"
+            >
+          </div>
+
+          <div class="booking-summary" *ngIf="bookingForm.valid">
+            <p><strong>Daily Rate:</strong> {{ selectedVehicle?.pricePerDay | number:'1.0-0' }} RSD</p>
+            <p><strong>Total Price:</strong> {{ calculateTotalPrice() | number:'1.0-0' }} RSD</p>
+          </div>
+
+          <div class="error-message" *ngIf="error">
+            {{ error }}
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" (click)="closeBookingModal()" class="cancel-btn">
+              Cancel
+            </button>
+            <button type="button" (click)="onBookVehicle()" class="confirm-btn" [disabled]="bookingForm.invalid">
+              Continue to Payment
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Step 2: Payment Method Selection -->
+      <div *ngIf="showPaymentMethodSelection && !processingOrder">
+        <h2>Select Payment Method</h2>
+        
+        <div class="payment-methods">
+          <div class="payment-method-card" (click)="selectPaymentMethod('card')">
+            <div class="payment-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                <line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
+            </div>
+            <h3>Card Payment</h3>
+            <p>Pay with Visa or Mastercard</p>
+            <button class="select-btn">Select</button>
+          </div>
+
+          <div class="payment-method-card disabled">
+            <div class="payment-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <rect x="7" y="7" width="4" height="4"/>
+                <rect x="7" y="13" width="4" height="4"/>
+                <rect x="13" y="7" width="4" height="4"/>
+                <rect x="13" y="13" width="4" height="4"/>
+              </svg>
+            </div>
+            <h3>QR Code Payment</h3>
+            <p>Available in final version</p>
+            <button class="select-btn" disabled>Coming Soon</button>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" (click)="showPaymentMethodSelection = false" class="cancel-btn">
+            Back
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Processing -->
+      <div *ngIf="processingOrder" class="processing-state">
+        <div class="spinner"></div>
+        <p>Redirecting to payment gateway...</p>
+      </div>
+
+    </div>
+  </div>
+</div>

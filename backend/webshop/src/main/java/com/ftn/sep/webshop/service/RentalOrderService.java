@@ -21,7 +21,6 @@ import java.util.UUID;
 public class RentalOrderService {
 
     private final RentalOrderRepository rentalOrderRepository;
-    private final VehicleService vehicleService;
 
     @Transactional
     public RentalOrder createOrder(User user, Vehicle vehicle, LocalDate startDate, LocalDate endDate) {
@@ -66,6 +65,11 @@ public class RentalOrderService {
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         order.setStatus(status);
         rentalOrderRepository.save(order);
+    }
+
+    @Transactional
+    public RentalOrder save(RentalOrder order) {
+        return rentalOrderRepository.save(order);
     }
 
     private String generateMerchantOrderId() {

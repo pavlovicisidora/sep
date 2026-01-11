@@ -13,12 +13,4 @@ public class WebshopApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(WebshopApplication.class, args);
 	}
-
-	@Bean
-	public SecurityFilterChain filterChain(HttpSecurity http) {
-		http
-				.csrf(AbstractHttpConfigurer::disable)
-				.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-		return http.build();
-	}
 }
