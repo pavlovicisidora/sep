@@ -3,18 +3,19 @@ package com.ftn.sep.psp.controller;
 import com.ftn.sep.psp.dto.*;
 import com.ftn.sep.psp.model.PaymentSession;
 import com.ftn.sep.psp.model.PaymentStatus;
-import com.ftn.sep.psp.service.BankService;
 import com.ftn.sep.psp.service.MerchantService;
+import com.ftn.sep.psp.service.PaymentProviderService;
 import com.ftn.sep.psp.service.PaymentSessionService;
+import com.ftn.sep.psp.service.provider.PaymentProvider;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -24,18 +25,16 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentSessionService paymentSessionService;
+    private final PaymentProviderService paymentProviderService;
     private final MerchantService merchantService;
-    private final BankService bankService;
     private final RestTemplate restTemplate;
-
-    @Value("${psp.merchant.bank.id}")
-    private String pspBankMerchantId;
 
     @PostMapping("/initialize")
     public ResponseEntity<InitializePaymentResponse> initializePayment(
             @Valid @RequestBody InitializePaymentRequest request) {
 
-        log.info("Received payment initialization request from merchant: {}", request.getMerchantId());
+        log.info("Received payment initialization request from merchant: {}, method: {}",
+                request.getMerchantId(), request.getPaymentMethod());
 
         if (!merchantService.validateMerchant(request.getMerchantId(), request.getMerchantPassword())) {
             log.warn("Invalid merchant credentials for: {}", request.getMerchantId());
@@ -43,36 +42,43 @@ public class PaymentController {
                     .body(new InitializePaymentResponse(null, null, null, "ERROR", "Invalid merchant credentials"));
         }
 
-        PaymentSession session = getPaymentSession(request);
+        PaymentProvider provider = paymentProviderService.getProviderByCode(request.getPaymentMethod())
+                .orElseThrow(() -> new RuntimeException("Payment method not supported: " + request.getPaymentMethod()));
 
+        if (!provider.isAvailable()) {
+            log.warn("Payment method {} is not available", request.getPaymentMethod());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(new InitializePaymentResponse(null, null, null, "ERROR",
+                            "Payment method temporarily unavailable"));
+        }
+
+        PaymentSession session = getPaymentSession(request);
         PaymentSession savedSession = paymentSessionService.createSession(session);
 
         log.info("Created payment session with STAN: {}", savedSession.getStan());
 
         try {
-            BankPaymentRequest bankRequest = new BankPaymentRequest(
-                    pspBankMerchantId,
+            PaymentProviderResponse providerResponse = provider.createPaymentSession(
+                    request.getMerchantId(),
                     savedSession.getAmount(),
                     savedSession.getCurrency(),
                     savedSession.getStan(),
                     savedSession.getPspTimestamp()
             );
 
-            BankPaymentResponse bankResponse = bankService.createPaymentSession(bankRequest);
-
-            if (bankResponse != null && "SUCCESS".equals(bankResponse.getStatus())) {
+            if (providerResponse != null && "SUCCESS".equals(providerResponse.getStatus())) {
                 paymentSessionService.updateWithBankData(
                         savedSession.getId(),
-                        bankResponse.getPaymentId(),
-                        bankResponse.getPaymentUrl()
+                        providerResponse.getPaymentId(),
+                        providerResponse.getPaymentUrl()
                 );
 
                 log.info("Payment session initialized successfully - redirecting user to: {}",
-                        bankResponse.getPaymentUrl());
+                        providerResponse.getPaymentUrl());
 
                 InitializePaymentResponse response = new InitializePaymentResponse(
-                        bankResponse.getPaymentId(),
-                        bankResponse.getPaymentUrl(),
+                        providerResponse.getPaymentId(),
+                        providerResponse.getPaymentUrl(),
                         savedSession.getStan(),
                         "SUCCESS",
                         "Payment session initialized successfully"
@@ -82,18 +88,18 @@ public class PaymentController {
             } else {
                 paymentSessionService.updateStatus(savedSession.getId(), PaymentStatus.ERROR);
 
-                log.error("Bank returned error: {}",
-                        bankResponse != null ? bankResponse.getMessage() : "null response");
+                log.error("Provider returned error: {}",
+                        providerResponse != null ? providerResponse.getMessage() : "null response");
 
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                         .body(new InitializePaymentResponse(
                                 null, null, savedSession.getStan(), "ERROR",
-                                "Bank service error"
+                                "Payment provider error"
                         ));
             }
 
         } catch (Exception e) {
-            log.error("Error communicating with Bank", e);
+            log.error("Error communicating with payment provider", e);
             paymentSessionService.updateStatus(savedSession.getId(), PaymentStatus.ERROR);
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -217,5 +223,21 @@ public class PaymentController {
         } catch (Exception e) {
             log.error("Error notifying merchant at: " + callbackUrl, e);
         }
+    }
+
+    @GetMapping("/methods")
+    public ResponseEntity<?> getAvailablePaymentMethods() {
+        log.info("Fetching available payment methods");
+
+        List<Map<String, String>> methods = paymentProviderService.getAvailableProviders()
+                .stream()
+                .map(provider -> Map.of(
+                        "code", provider.getMethodCode(),
+                        "name", provider.getMethodName(),
+                        "description", provider.getDescription()
+                ))
+                .toList();
+
+        return ResponseEntity.ok(methods);
     }
 }

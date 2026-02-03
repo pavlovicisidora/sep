@@ -98,7 +98,9 @@ export class MyOrdersComponent implements OnInit {
   }
 
   payOrder(orderId: number): void {
-    this.orderService.initiatePayment(orderId).subscribe({
+    const paymentMethod = 'CARD';
+    
+    this.orderService.initiatePayment(orderId, paymentMethod).subscribe({
       next: (response) => {
         window.location.href = response.paymentUrl;
       },

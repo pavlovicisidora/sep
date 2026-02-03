@@ -36,11 +36,12 @@ public class PSPService {
 
     public Map<String, Object> initializePayment(String merchantOrderId,
                                                  BigDecimal amount,
-                                                 String currency) {
+                                                 String currency,
+                                                 String paymentMethod) {
         String url = pspApiUrl + "/api/payment/initialize";
 
-        log.info("Initializing payment with PSP - Order ID: {}, Amount: {} {}",
-                merchantOrderId, amount, currency);
+        log.info("Initializing payment with PSP - Order ID: {}, Amount: {} {}, Method: {}",
+                merchantOrderId, amount, currency, paymentMethod);
 
         Map<String, Object> request = new HashMap<>();
         request.put("merchantId", merchantId);
@@ -52,6 +53,7 @@ public class PSPService {
         request.put("successUrl", webshopBaseUrl + "/api/payment/callback/success");
         request.put("failedUrl", webshopBaseUrl + "/api/payment/callback/failed");
         request.put("errorUrl", webshopBaseUrl + "/api/payment/callback/error");
+        request.put("paymentMethod", paymentMethod);
 
         try {
             HttpHeaders headers = new HttpHeaders();
