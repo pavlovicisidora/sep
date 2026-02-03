@@ -21,6 +21,7 @@ export interface Order {
   merchantOrderId: string;
   createdAt: string;
   lastPaymentAttempt?: string; 
+  paymentMethod?: string;
 }
 
 export interface PaymentInitResponse {

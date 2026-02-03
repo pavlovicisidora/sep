@@ -52,9 +52,13 @@ public class RentalOrder {
     private LocalDateTime createdAt;
 
     private LocalDateTime lastPaymentAttempt;
+    
+    @Column(name = "payment_method")
+    private String paymentMethod;
 
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
+
 }

@@ -55,6 +55,15 @@
             <span class="value">{{ order.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
           </div>
 
+          <div class="detail-row" *ngIf="order.paymentMethod">
+            <span class="label">Payment Method:</span>
+            <span class="value payment-method">
+              <span class="badge-method" [ngClass]="'method-' + order.paymentMethod?.toLowerCase()">
+                {{ getPaymentMethodName(order.paymentMethod) }}
+              </span>
+            </span>
+          </div>
+
           <div class="detail-row" *ngIf="order.status === 'PAID'">
             <span class="label">Transaction ID:</span>
             <span class="value transaction-id">{{ order.id }}</span>

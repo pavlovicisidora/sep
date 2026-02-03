@@ -318,3 +318,26 @@
   padding-top: 15px;
   border-top: 2px solid #f0f0f0;
 }
+
+.payment-method {
+  display: flex;
+  align-items: center;
+}
+
+.badge-method {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.method-card {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.method-qr {
+  background: #f3e5f5;
+  color: #6a1b9a;
+}

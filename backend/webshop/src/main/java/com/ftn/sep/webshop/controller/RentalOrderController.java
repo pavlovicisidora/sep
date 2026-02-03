@@ -119,11 +119,12 @@ public class RentalOrderController {
                     paymentMethod
             );
 
+            order.setPaymentMethod(paymentMethod);
             order.setLastPaymentAttempt(LocalDateTime.now());
             rentalOrderService.save(order);
 
-            log.info("Payment URL generated for order {} with merchant order ID: {}",
-                    orderId, order.getMerchantOrderId());
+            log.info("Payment URL generated for order {} with merchant order ID: {} using method: {}",
+                    orderId, order.getMerchantOrderId(), paymentMethod);
 
             return ResponseEntity.ok(pspResponse);
 
@@ -207,7 +208,9 @@ public class RentalOrderController {
                 order.getCurrency(),
                 order.getStatus(),
                 order.getMerchantOrderId(),
-                order.getCreatedAt()
+                order.getCreatedAt(),
+                order.getPaymentMethod(),
+                order.getLastPaymentAttempt()
         );
     }
 }
