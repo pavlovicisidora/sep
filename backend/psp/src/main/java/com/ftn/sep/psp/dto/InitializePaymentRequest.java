@@ -38,4 +38,7 @@ public class InitializePaymentRequest {
 
     @NotBlank(message = "Error URL is required")
     private String errorUrl;
+
+    @NotBlank(message = "Payment method is required")
+    private String paymentMethod;
 }

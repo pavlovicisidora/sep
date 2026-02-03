@@ -85,7 +85,9 @@ public class RentalOrderController {
     }
 
     @PostMapping("/{orderId}/pay")
-    public ResponseEntity<?> initiatePayment(@PathVariable Long orderId) {
+    public ResponseEntity<?> initiatePayment(
+            @PathVariable Long orderId,
+            @RequestBody Map<String, String> requestBody) {
         String currentUserEmail = SecurityUtils.getCurrentUserEmail();
         User currentUser = userService.findByEmail(currentUserEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -104,10 +106,17 @@ public class RentalOrderController {
         }
 
         try {
+            String paymentMethod = requestBody.get("paymentMethod");
+
+            if (paymentMethod == null || paymentMethod.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Payment method is required"));
+            }
             Map<String, Object> pspResponse = pspService.initializePayment(
                     order.getMerchantOrderId(),
                     order.getTotalPrice(),
-                    order.getCurrency()
+                    order.getCurrency(),
+                    paymentMethod
             );
 
             order.setLastPaymentAttempt(LocalDateTime.now());

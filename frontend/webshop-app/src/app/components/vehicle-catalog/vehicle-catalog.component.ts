@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { VehicleService, Vehicle } from '../../services/vehicle.service';
 import { OrderService } from '../../services/order.service';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { PaymentMethod, PaymentMethodService } from 'src/app/services/payment-method.service';
 
 @Component({
   selector: 'app-vehicle-catalog',
@@ -17,21 +18,25 @@ export class VehicleCatalogComponent implements OnInit {
   vehicles: Vehicle[] = [];
   loading = true;
   currentUser = this.authService.getCurrentUser();
+
   selectedVehicle: Vehicle | null = null;
   showBookingModal = false;
   bookingForm: FormGroup;
   processingOrder = false;
   error: string | null = null;
 
-  selectedPaymentMethod: 'card' | 'qr' | null = null;
+  selectedPaymentMethod: string | null = null;
   showPaymentMethodSelection = false;
+  
+  availablePaymentMethods: PaymentMethod[] = [];
 
   constructor(
     private vehicleService: VehicleService,
     private orderService: OrderService,
     private authService: AuthService,
     private router: Router,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private paymentMethodService: PaymentMethodService
   ) {
     this.bookingForm = this.fb.group({
       rentalStartDate: ['', Validators.required],
@@ -41,6 +46,19 @@ export class VehicleCatalogComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadVehicles();
+    this.loadPaymentMethods();
+  }
+
+  loadPaymentMethods(): void {
+    this.paymentMethodService.getAvailablePaymentMethods().subscribe({
+      next: (methods) => {
+        this.availablePaymentMethods = methods;
+        console.log('Available payment methods:', methods);
+      },
+      error: (err) => {
+        console.error('Error loading payment methods', err);
+      }
+    });
   }
 
   loadVehicles(): void {
@@ -96,18 +114,14 @@ export class VehicleCatalogComponent implements OnInit {
     this.showPaymentMethodSelection = true;
   }
 
-  selectPaymentMethod(method: 'card' | 'qr'): void {
-    if (method === 'qr') {
-      alert('QR code payment will be available in the final version. Please use Card payment.');
-      return;
-    }
-    this.selectedPaymentMethod = method;
+  selectPaymentMethod(methodCode: string): void {
+    this.selectedPaymentMethod = methodCode;
     this.proceedWithPayment();
   }
 
   proceedWithPayment(): void {
-    if (!this.selectedVehicle) return;
-
+    if (!this.selectedVehicle || !this.selectedPaymentMethod) return;
+    
     this.processingOrder = true;
     this.error = null;
 
@@ -119,7 +133,7 @@ export class VehicleCatalogComponent implements OnInit {
 
     this.orderService.createOrder(request).subscribe({
       next: (order) => {
-        this.orderService.initiatePayment(order.id).subscribe({
+        this.orderService.initiatePayment(order.id, this.selectedPaymentMethod!).subscribe({
           next: (paymentResponse) => {
             window.location.href = paymentResponse.paymentUrl;
           },

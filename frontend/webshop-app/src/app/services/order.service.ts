@@ -56,8 +56,11 @@ export class OrderService {
     return this.http.get<Order[]>(`${this.apiUrl}/my`);
   }
 
-  initiatePayment(orderId: number): Observable<PaymentInitResponse> {
-    return this.http.post<PaymentInitResponse>(`${this.apiUrl}/${orderId}/pay`, {});
+  initiatePayment(orderId: number, paymentMethod: string): Observable<PaymentInitResponse> {
+    return this.http.post<PaymentInitResponse>(
+      `${this.apiUrl}/${orderId}/pay`, 
+      { paymentMethod }
+    );
   }
 
   checkOrderStatus(orderId: number): Observable<OrderStatus> {
