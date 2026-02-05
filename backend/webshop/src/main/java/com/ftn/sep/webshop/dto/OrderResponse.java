@@ -24,4 +24,6 @@ public class OrderResponse {
     private OrderStatus status;
     private String merchantOrderId;
     private LocalDateTime createdAt;
+    private String paymentMethod;
+    private LocalDateTime lastPaymentAttempt;
 }

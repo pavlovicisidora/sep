@@ -119,4 +119,16 @@ export class MyOrdersComponent implements OnInit {
     this.authService.logout();
     this.router.navigate(['/login']);
   }
+
+  getPaymentMethodName(method: string | undefined): string {
+    if (!method) return 'N/A';
+    
+    switch (method) {
+      case 'CARD': return 'Card Payment';
+      case 'QR': return 'QR Code';
+      case 'PAYPAL': return 'PayPal';
+      case 'CRYPTO': return 'Cryptocurrency';
+      default: return method;
+    }
+  }
 }
