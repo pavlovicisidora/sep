@@ -62,6 +62,9 @@ public class BankTransaction {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

@@ -1,0 +1,65 @@
+<div class="qr-payment-container">
+  <div class="qr-card" *ngIf="!loading && !error && !expired">
+    <div class="header">
+      <img src="assets/bank-logo.svg" alt="Bank Logo" class="bank-logo">
+      <h1>QR Code Payment</h1>
+    </div>
+
+    <div class="qr-content" *ngIf="paymentData">
+      <div class="payment-info">
+        <div class="info-row">
+          <span class="label">Amount:</span>
+          <span class="value amount">{{ paymentData.amount | number:'1.2-2' }} {{ paymentData.currency }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Recipient:</span>
+          <span class="value">{{ paymentData.recipientName }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Expires in:</span>
+          <span class="value expires">{{ getRemainingTime() }}</span>
+        </div>
+      </div>
+
+      <div class="qr-code-section">
+        <h2>Scan QR Code to Pay</h2>
+        <p class="instruction">Use your mobile banking app to scan this QR code</p>
+        
+        <div class="qr-code-wrapper">
+          <img [src]="getQrImageSrc()" alt="IPS QR Code" class="qr-code-image">
+        </div>
+
+        <div class="bank-logos">
+          <p class="supported-text">Compatible with all IPS-enabled banking apps</p>
+        </div>
+      </div>
+
+      <div class="manual-payment-info">
+        <details>
+          <summary>Manual Payment Information</summary>
+          <div class="manual-details">
+            <p><strong>Reference:</strong> {{ paymentData.stan }}</p>
+            <p class="note">Use this reference if paying manually through your bank</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-card" *ngIf="error">
+    <div class="error-icon">⚠️</div>
+    <h2>Payment Error</h2>
+    <p>{{ error }}</p>
+  </div>
+
+  <div class="expired-card" *ngIf="expired">
+    <div class="expired-icon">⏱️</div>
+    <h2>Payment Session Expired</h2>
+    <p>This QR code has expired. Please return to the merchant and start a new payment.</p>
+  </div>
+
+  <div class="loading" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Loading payment information...</p>
+  </div>
+</div>

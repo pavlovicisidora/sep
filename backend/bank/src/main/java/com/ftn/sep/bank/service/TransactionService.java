@@ -37,6 +37,10 @@ public class TransactionService {
         return transactionRepository.findByStan(stan);
     }
 
+    public Optional<BankTransaction> findById(Long id) {
+        return transactionRepository.findById(id);
+    }
+
     @Transactional
     public void updateTransactionStatus(Long transactionId, TransactionStatus status,
                                         String failureReason) {

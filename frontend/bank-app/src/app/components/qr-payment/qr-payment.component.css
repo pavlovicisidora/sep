@@ -1,0 +1,179 @@
+.qr-payment-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.qr-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 100%;
+  padding: 40px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.bank-logo {
+  height: 40px;
+  margin-bottom: 15px;
+}
+
+.header h1 {
+  margin: 0;
+  color: #333;
+  font-size: 24px;
+}
+
+.payment-info {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  font-weight: 600;
+  color: #666;
+}
+
+.value {
+  color: #333;
+}
+
+.value.amount {
+  font-size: 20px;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.value.expires {
+  font-weight: 600;
+  color: #e67e22;
+}
+
+.qr-code-section {
+  text-align: center;
+}
+
+.qr-code-section h2 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 20px;
+}
+
+.instruction {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.qr-code-wrapper {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 20px;
+  display: inline-block;
+  margin-bottom: 20px;
+}
+
+.qr-code-image {
+  width: 300px;
+  height: 300px;
+  display: block;
+}
+
+.bank-logos {
+  margin-top: 20px;
+}
+
+.supported-text {
+  color: #999;
+  font-size: 13px;
+}
+
+.manual-payment-info {
+  margin-top: 30px;
+}
+
+details {
+  cursor: pointer;
+}
+
+summary {
+  color: #667eea;
+  font-weight: 600;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f8f9fa;
+}
+
+.manual-details {
+  padding: 15px;
+  margin-top: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.note {
+  color: #999;
+  font-size: 13px;
+  margin: 10px 0 0 0;
+}
+
+.error-card,
+.expired-card {
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  max-width: 400px;
+}
+
+.error-icon,
+.expired-icon {
+  font-size: 60px;
+  margin-bottom: 20px;
+}
+
+.error-card h2,
+.expired-card h2 {
+  color: #e74c3c;
+  margin: 0 0 15px 0;
+}
+
+.loading {
+  text-align: center;
+  color: white;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-top: 5px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
