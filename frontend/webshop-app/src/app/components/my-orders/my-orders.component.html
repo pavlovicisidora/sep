@@ -73,7 +73,7 @@
         <div class="order-actions" *ngIf="canPay(order) || canCheckStatus(order)">
           <button 
             *ngIf="canPay(order)" 
-            (click)="payOrder(order.id)" 
+            (click)="payOrder(order)" 
             class="pay-btn"
           >
             Complete Payment

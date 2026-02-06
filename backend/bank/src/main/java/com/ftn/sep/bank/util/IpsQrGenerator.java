@@ -100,7 +100,16 @@ public class IpsQrGenerator {
 
         // RO - model i poziv na broj odobrenja (opcioni)
         if (paymentReference != null && !paymentReference.isEmpty()) {
-            payload.append("RO:00").append(paymentReference);
+            String sanitizedRef = paymentReference.replaceAll("[^0-9]", "");
+
+            if (!sanitizedRef.isEmpty()) {
+                if (sanitizedRef.length() > 23) {
+                    sanitizedRef = sanitizedRef.substring(0, 23);
+                }
+                payload.append("RO:00").append(sanitizedRef);
+            } else {
+                payload.setLength(payload.length() - 1);
+            }
         } else {
             payload.setLength(payload.length() - 1);
         }

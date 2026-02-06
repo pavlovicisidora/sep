@@ -1,6 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 
 interface QrPaymentData {
@@ -20,14 +20,18 @@ interface QrPaymentData {
   templateUrl: './qr-payment.component.html',
   styleUrls: ['./qr-payment.component.css']
 })
-export class QrPaymentComponent implements OnInit {
+export class QrPaymentComponent implements OnInit, OnDestroy {
   paymentData: QrPaymentData | null = null;
   loading = true;
   error: string | null = null;
-  expired = false;
+  processing = false;
+  
+  timeRemaining = 0;
+  private intervalId?: number;
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private http: HttpClient
   ) {}
 
@@ -36,10 +40,15 @@ export class QrPaymentComponent implements OnInit {
     
     if (paymentId) {
       this.loadQrPaymentData(paymentId);
-      this.startExpiryCheck();
     } else {
       this.error = 'Invalid payment ID';
       this.loading = false;
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
     }
   }
 
@@ -49,7 +58,7 @@ export class QrPaymentComponent implements OnInit {
         next: (data) => {
           this.paymentData = data;
           this.loading = false;
-          this.checkExpiry();
+          this.startCountdown();
         },
         error: (err) => {
           console.error('Error loading QR payment data', err);
@@ -59,40 +68,80 @@ export class QrPaymentComponent implements OnInit {
       });
   }
 
-  startExpiryCheck(): void {
-    setInterval(() => {
-      this.checkExpiry();
-    }, 10000);
+  startCountdown(): void {
+    this.updateTimeRemaining();
+    
+    this.intervalId = window.setInterval(() => {
+      this.updateTimeRemaining();
+    }, 1000);
   }
 
-  checkExpiry(): void {
+  updateTimeRemaining(): void {
     if (!this.paymentData) return;
     
     const expiryTime = new Date(this.paymentData.expiresAt).getTime();
     const now = Date.now();
-    
-    if (now > expiryTime) {
-      this.expired = true;
-    }
+    this.timeRemaining = Math.max(0, Math.floor((expiryTime - now) / 1000));
   }
 
-  getQrImageSrc(): string {
+  formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  get qrCodeImage(): string {
     if (!this.paymentData) return '';
     return `data:image/png;base64,${this.paymentData.qrCodeBase64}`;
   }
 
-  getRemainingTime(): string {
-    if (!this.paymentData) return '';
-    
-    const expiryTime = new Date(this.paymentData.expiresAt).getTime();
-    const now = Date.now();
-    const remainingMs = expiryTime - now;
-    
-    if (remainingMs <= 0) return 'Expired';
-    
-    const minutes = Math.floor(remainingMs / 60000);
-    const seconds = Math.floor((remainingMs % 60000) / 1000);
-    
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  get amount(): number {
+    return this.paymentData?.amount || 0;
+  }
+
+  get merchantName(): string {
+    return this.paymentData?.recipientName || '';
+  }
+
+  get merchantAccount(): string {
+    return 'Merchant Account'; // Could extract from QR data if needed
+  }
+
+  confirmPayment(): void {
+    if (!this.paymentData) return;
+
+    this.processing = true;
+    const transactionId = parseInt(this.paymentData.paymentId.replace('QR-', ''));
+
+    this.http.post<{status: string, redirectUrl: string, message: string}>(
+      'https://localhost:8445/api/qr/confirm',
+      { transactionId: transactionId }
+    ).subscribe({
+      next: (response) => {
+        console.log('✅ Payment confirmed:', response.message);
+        
+        setTimeout(() => {
+          window.location.href = response.redirectUrl;
+        }, 1000);
+      },
+      error: (err) => {
+        console.error('❌ Confirmation failed:', err);
+        this.processing = false;
+        alert(err.error?.error || 'Payment confirmation failed');
+      }
+    });
+  }
+
+  openScanner(): void {
+    if (this.paymentData) {
+      this.router.navigate(['/qr-scanner', this.paymentData.paymentId]);
+    }
+  }
+
+  refreshQR(): void {
+    if (this.paymentData) {
+      this.loading = true;
+      this.loadQrPaymentData(this.paymentData.paymentId);
+    }
   }
 }

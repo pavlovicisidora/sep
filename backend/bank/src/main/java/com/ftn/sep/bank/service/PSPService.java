@@ -1,5 +1,6 @@
 package com.ftn.sep.bank.service;
 
+import com.ftn.sep.bank.security.HmacUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ import java.util.Map;
 public class PSPService {
 
     private final RestTemplate restTemplate;
+    private final HmacUtil hmacUtil;
 
     @Value("${psp.api.url}")
     private String pspApiUrl;
@@ -36,8 +38,17 @@ public class PSPService {
         request.put("status", status);
 
         try {
+            String payload = hmacUtil.createPayload(
+                    stan,
+                    status,
+                    globalTransactionId,
+                    acquirerTimestamp.toString()
+            );
+            String signature = hmacUtil.generateSignature(payload);
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-Bank-Signature", signature);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
 

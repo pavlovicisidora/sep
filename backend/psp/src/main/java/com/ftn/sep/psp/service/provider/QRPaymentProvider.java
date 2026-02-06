@@ -70,7 +70,6 @@ public class QRPaymentProvider implements PaymentProvider {
         request.put("stan", stan);
         request.put("pspTimestamp", timestamp);
 
-        // Generate HMAC signature
         String payload = hmacUtil.createPayload(
                 pspBankMerchantId,
                 amount.toString(),

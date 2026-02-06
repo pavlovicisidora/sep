@@ -13,6 +13,11 @@ export const routes: Routes = [
       .then(m => m.QrPaymentComponent)
   },
   {
+    path: 'qr-scanner/:paymentId',
+    loadComponent: () => import('./components/qr-scanner/qr-scanner.component')
+      .then(m => m.QrScannerComponent)
+  },
+  {
     path: '',
     redirectTo: '/payment/example',
     pathMatch: 'full'

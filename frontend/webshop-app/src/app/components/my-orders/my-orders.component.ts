@@ -97,10 +97,10 @@ export class MyOrdersComponent implements OnInit {
     return order.status === 'PENDING';
   }
 
-  payOrder(orderId: number): void {
-    const paymentMethod = 'CARD';
-    
-    this.orderService.initiatePayment(orderId, paymentMethod).subscribe({
+  payOrder(order: Order): void {
+    const paymentMethod = order.paymentMethod || 'CARD';
+  
+    this.orderService.initiatePayment(order.id, paymentMethod).subscribe({
       next: (response) => {
         window.location.href = response.paymentUrl;
       },

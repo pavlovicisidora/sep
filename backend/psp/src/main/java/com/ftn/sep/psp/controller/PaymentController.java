@@ -3,6 +3,7 @@ package com.ftn.sep.psp.controller;
 import com.ftn.sep.psp.dto.*;
 import com.ftn.sep.psp.model.PaymentSession;
 import com.ftn.sep.psp.model.PaymentStatus;
+import com.ftn.sep.psp.security.HmacUtil;
 import com.ftn.sep.psp.service.MerchantService;
 import com.ftn.sep.psp.service.PaymentProviderService;
 import com.ftn.sep.psp.service.PaymentSessionService;
@@ -28,6 +29,7 @@ public class PaymentController {
     private final PaymentProviderService paymentProviderService;
     private final MerchantService merchantService;
     private final RestTemplate restTemplate;
+    private final HmacUtil hmacUtil;
 
     @PostMapping("/initialize")
     public ResponseEntity<InitializePaymentResponse> initializePayment(
@@ -124,9 +126,31 @@ public class PaymentController {
     }
 
     @PostMapping("/callback")
-    public ResponseEntity<String> handleBankCallback(@RequestBody PaymentCallbackRequest request) {
+    public ResponseEntity<String> handleBankCallback(
+            @RequestHeader(value = "X-Bank-Signature", required = false) String signature,
+            @RequestBody PaymentCallbackRequest request) {
         log.info("Received callback from bank for STAN: {}, Status: {}",
                 request.getStan(), request.getStatus());
+
+        if (signature == null || signature.isEmpty()) {
+            log.warn("Missing HMAC signature in Bank callback for STAN: {}", request.getStan());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Missing authentication signature");
+        }
+
+        String payload = String.format("%s|%s|%s|%s",
+                request.getStan(),
+                request.getStatus(),
+                request.getGlobalTransactionId(),
+                request.getAcquirerTimestamp().toString()
+        );
+
+        if (!hmacUtil.validateSignature(payload, signature)) {
+            log.warn("Invalid HMAC signature for Bank callback - STAN: {}", request.getStan());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid authentication signature");
+        }
+        log.info("Bank callback HMAC validated successfully for STAN: {}", request.getStan());
 
         PaymentSession session = paymentSessionService.findByStan(request.getStan())
                 .orElseThrow(() -> new RuntimeException("Payment session not found"));

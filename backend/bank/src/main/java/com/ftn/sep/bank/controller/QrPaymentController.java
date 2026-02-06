@@ -1,10 +1,12 @@
 package com.ftn.sep.bank.controller;
 
+import com.ftn.sep.bank.dto.ConfirmQrPaymentRequest;
 import com.ftn.sep.bank.dto.QrPaymentRequest;
 import com.ftn.sep.bank.dto.QrPaymentResponse;
 import com.ftn.sep.bank.model.BankTransaction;
 import com.ftn.sep.bank.model.TransactionStatus;
 import com.ftn.sep.bank.security.HmacUtil;
+import com.ftn.sep.bank.service.PSPService;
 import com.ftn.sep.bank.service.TransactionService;
 import com.ftn.sep.bank.util.IpsQrGenerator;
 import com.ftn.sep.bank.util.IpsQrValidator;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/qr")
@@ -29,6 +32,7 @@ public class QrPaymentController {
     private final IpsQrGenerator qrGenerator;
     private final IpsQrValidator qrValidator;
     private final HmacUtil hmacUtil;
+    private final PSPService pspService;
 
     @Value("${psp.merchant.bank.id}")
     private String expectedMerchantId;
@@ -151,13 +155,13 @@ public class QrPaymentController {
         }
     }
 
-    /*@PostMapping("/validate")
+    @PostMapping("/validate")
     public ResponseEntity<?> validateQrCode(@RequestBody Map<String, String> request) {
         String payload = request.get("payload");
 
         log.info("Validating QR payload: {}", payload);
 
-        Map<String, Object> validationResult = qrValidator.validateQrCode(payload);
+        Map<String, Object> validationResult = qrValidator.validateQrPayload(payload);
 
         return ResponseEntity.ok(validationResult);
     }
@@ -186,12 +190,18 @@ public class QrPaymentController {
 
             transactionService.updateTransactionStatus(
                     txId,
-                    TransactionStatus.SUCCESS,
+                    TransactionStatus.COMPLETED,
                     null
             );
+            transaction = transactionService.findById(txId)
+                    .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
-            pspCallbackService.sendCallback(transaction, "SUCCESS");
-
+            pspService.notifyPaymentResult(
+                    transaction.getStan(),
+                    transaction.getGlobalTransactionId(),
+                    transaction.getAcquirerTimestamp(),
+                    "SUCCESS"
+            );
             return ResponseEntity.ok(Map.of("status", "SUCCESS"));
 
         } catch (Exception e) {
@@ -199,5 +209,59 @@ public class QrPaymentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to process payment"));
         }
-    }*/
+    }
+
+    @PostMapping("/confirm")
+    public ResponseEntity<?> confirmQrPayment(@RequestBody ConfirmQrPaymentRequest request) {
+        try {
+            log.info("Manual QR payment confirmation for transaction: {}", request.getTransactionId());
+
+            Optional<BankTransaction> transaction = transactionService.findById(request.getTransactionId());
+
+            if (transaction.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            if (transaction.get().getStatus() != TransactionStatus.PENDING) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Transaction already processed"));
+            }
+
+            if (LocalDateTime.now().isAfter(transaction.get().getPaymentUrlExpiresAt())) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "QR code expired"));
+            }
+
+            transactionService.updateTransactionStatus(
+                    transaction.get().getId(),
+                    TransactionStatus.COMPLETED,
+                    null
+            );
+
+            try {
+                pspService.notifyPaymentResult(
+                        transaction.get().getStan(),
+                        transaction.get().getGlobalTransactionId(),
+                        transaction.get().getAcquirerTimestamp(),
+                        "SUCCESS"
+                );
+            } catch (Exception e) {
+                log.error("Failed to send callback to PSP", e);
+            }
+
+            String successUrl = "https://localhost:4200/payment/success?paymentId=" +
+                    transaction.get().getPaymentId() + "&gtx=" + transaction.get().getGlobalTransactionId();
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "redirectUrl", successUrl,
+                    "message", "Payment confirmed successfully"
+            ));
+
+        } catch (Exception e) {
+            log.error("Error confirming QR payment", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Payment confirmation failed"));
+        }
+    }
 }
