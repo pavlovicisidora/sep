@@ -143,7 +143,8 @@ public class PaymentController {
                             null,
                             transaction.getStan(),
                             "EXPIRED",
-                            "Payment session has expired"
+                            "Payment session has expired",
+                            null
                     ));
         }
 
@@ -153,10 +154,12 @@ public class PaymentController {
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "ALREADY_PROCESSED",
-                            "This payment has already been processed"
+                            "This payment has already been processed",
+                            null
                     ));
         }
 
+        // Stage 1: Format validation (Luhn, expiry format, CVV format)
         if (!cardValidationService.validateCard(
                 request.getPan(),
                 request.getExpiryDate(),
@@ -168,15 +171,25 @@ public class PaymentController {
                     "Invalid card data format"
             );
 
+            // Notify PSP about failure so WebShop gets updated
+            String redirectUrl = pspService.notifyPaymentResult(
+                    transaction.getStan(),
+                    transaction.getGlobalTransactionId(),
+                    transaction.getAcquirerTimestamp(),
+                    "FAILED"
+            );
+
             return ResponseEntity.badRequest()
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "FAILED",
-                            "Invalid card data"
+                            "Invalid card data",
+                            redirectUrl
                     ));
         }
 
+        // Stage 2: Card data validation against database
         if (!cardService.validateCardData(
                 request.getPan(),
                 request.getCardHolderName(),
@@ -189,7 +202,7 @@ public class PaymentController {
                     "Card validation failed"
             );
 
-            pspService.notifyPaymentResult(
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
@@ -201,7 +214,8 @@ public class PaymentController {
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "FAILED",
-                            "Invalid card information"
+                            "Invalid card information",
+                            redirectUrl
                     ));
         }
 
@@ -210,6 +224,7 @@ public class PaymentController {
 
         BankAccount account = card.getAccount();
 
+        // Stage 3: Balance check
         if (!bankAccountService.hasSufficientFunds(account, transaction.getAmount())) {
             transactionService.updateTransactionStatus(
                     transaction.getId(),
@@ -217,7 +232,7 @@ public class PaymentController {
                     "Insufficient funds"
             );
 
-            pspService.notifyPaymentResult(
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
@@ -229,10 +244,12 @@ public class PaymentController {
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "FAILED",
-                            "Insufficient funds"
+                            "Insufficient funds",
+                            redirectUrl
                     ));
         }
 
+        // Stage 4: Reserve funds and complete
         try {
             log.info("Balance before the payment: {}", account.getBalance());
 
@@ -249,7 +266,7 @@ public class PaymentController {
                     transaction.getStan());
             log.info("Balance after the payment: {}", account.getBalance());
 
-            pspService.notifyPaymentResult(
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
@@ -260,7 +277,8 @@ public class PaymentController {
                     transaction.getGlobalTransactionId(),
                     transaction.getStan(),
                     "SUCCESS",
-                    "Payment processed successfully"
+                    "Payment processed successfully",
+                    redirectUrl
             ));
 
         } catch (Exception e) {
@@ -271,7 +289,7 @@ public class PaymentController {
                     e.getMessage()
             );
 
-            pspService.notifyPaymentResult(
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
@@ -283,7 +301,8 @@ public class PaymentController {
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "ERROR",
-                            "Payment processing error"
+                            "Payment processing error",
+                            redirectUrl
                     ));
         }
     }

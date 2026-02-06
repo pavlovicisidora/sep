@@ -52,13 +52,25 @@
           </div>
         </div>
 
+        <div class="account-input">
+          <label for="scannerAccountNumber"><strong>Your Bank Account Number:</strong></label>
+          <input
+            id="scannerAccountNumber"
+            type="text"
+            [(ngModel)]="accountNumber"
+            placeholder="e.g. 1234567890"
+            class="input-field"
+          />
+          <p class="input-hint error-text" *ngIf="accountError">{{ accountError }}</p>
+        </div>
+
         <div class="action-buttons">
-          <button (click)="confirmPayment()" [disabled]="processing" class="btn-confirm">
-            <span *ngIf="!processing">✅ Confirm Payment</span>
+          <button (click)="confirmPayment()" [disabled]="processing || !accountNumber" class="btn-confirm">
+            <span *ngIf="!processing">Confirm Payment</span>
             <span *ngIf="processing">Processing...</span>
           </button>
           <button (click)="resetScanner()" [disabled]="processing" class="btn-retry">
-            🔄 Scan Again
+            Scan Again
           </button>
         </div>
       </div>

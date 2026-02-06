@@ -49,7 +49,7 @@ export class PaymentFormComponent implements OnInit {
       next: (data) => {
         this.paymentData = data;
         this.loading = false;
-        
+
         if (data.expired) {
           this.error = 'Payment session has expired';
         }
@@ -65,7 +65,7 @@ export class PaymentFormComponent implements OnInit {
   panValidator(control: any) {
     const pan = control.value?.replace(/\s/g, '');
     if (!pan) return null;
-    
+
     return LuhnValidator.validatePan(pan) ? null : { invalidPan: true };
   }
 
@@ -79,7 +79,7 @@ export class PaymentFormComponent implements OnInit {
     }
 
     const [month, year] = value.split('/').map((v: string) => parseInt(v, 10));
-    
+
     if (month < 1 || month > 12) {
       return { invalidMonth: true };
     }
@@ -131,12 +131,11 @@ export class PaymentFormComponent implements OnInit {
 
     this.paymentService.processPayment(request).subscribe({
       next: (response) => {
-        if (response.status === 'SUCCESS') {
-          const redirectUrl = `https://localhost:4200/payment/success?paymentId=${this.paymentId}&gtx=${response.globalTransactionId}`;        
+        if (response.status === 'SUCCESS' && response.redirectUrl) {
+          // Redirect to WebShop via URL provided by PSP chain
           setTimeout(() => {
-            window.location.href = redirectUrl;
+            window.location.href = response.redirectUrl;
           }, 1500);
-          
           alert('Payment successful! Redirecting to store...');
         } else {
           this.error = response.message;
@@ -144,14 +143,13 @@ export class PaymentFormComponent implements OnInit {
         this.processing = false;
       },
       error: (err) => {
-        if (err.status === 400) {
-          const redirectUrl = `https://localhost:4200/payment/failed?paymentId=${this.paymentId}`;
-          
+        // On failure, use redirectUrl from error response if available
+        const redirectUrl = err.error?.redirectUrl;
+        if (redirectUrl) {
+          this.error = err.error?.message || 'Payment failed';
           setTimeout(() => {
             window.location.href = redirectUrl;
-          }, 1500);
-          
-          this.error = err.error?.message || 'Payment failed';
+          }, 2000);
         } else {
           this.error = err.error?.message || 'Payment processing error';
         }

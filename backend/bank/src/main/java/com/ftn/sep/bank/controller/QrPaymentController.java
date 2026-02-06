@@ -3,9 +3,11 @@ package com.ftn.sep.bank.controller;
 import com.ftn.sep.bank.dto.ConfirmQrPaymentRequest;
 import com.ftn.sep.bank.dto.QrPaymentRequest;
 import com.ftn.sep.bank.dto.QrPaymentResponse;
+import com.ftn.sep.bank.model.BankAccount;
 import com.ftn.sep.bank.model.BankTransaction;
 import com.ftn.sep.bank.model.TransactionStatus;
 import com.ftn.sep.bank.security.HmacUtil;
+import com.ftn.sep.bank.service.BankAccountService;
 import com.ftn.sep.bank.service.PSPService;
 import com.ftn.sep.bank.service.TransactionService;
 import com.ftn.sep.bank.util.IpsQrGenerator;
@@ -29,6 +31,7 @@ import java.util.Optional;
 public class QrPaymentController {
 
     private final TransactionService transactionService;
+    private final BankAccountService bankAccountService;
     private final IpsQrGenerator qrGenerator;
     private final IpsQrValidator qrValidator;
     private final HmacUtil hmacUtil;
@@ -145,6 +148,7 @@ public class QrPaymentController {
             response.put("qrCodeBase64", qrCodeBase64);
             response.put("expiresAt", transaction.getPaymentUrlExpiresAt());
             response.put("stan", transaction.getStan());
+            response.put("status", transaction.getStatus().name());
 
             return ResponseEntity.ok(response);
 
@@ -166,95 +170,119 @@ public class QrPaymentController {
         return ResponseEntity.ok(validationResult);
     }
 
-    @PostMapping("/process")
-    public ResponseEntity<?> processQrPayment(@RequestBody Map<String, String> request) {
-        String transactionId = request.get("transactionId");
-        String qrPayload = request.get("qrPayload");
-
-        log.info("Processing QR payment for transaction: {}", transactionId);
-
+    @PostMapping("/confirm")
+    public ResponseEntity<?> confirmQrPayment(@RequestBody ConfirmQrPaymentRequest request) {
         try {
-            Long txId = Long.parseLong(transactionId);
-            BankTransaction transaction = transactionService.findById(txId)
-                    .orElseThrow(() -> new RuntimeException("Transaction not found"));
+            log.info("QR payment confirmation for transaction: {}, account: {}",
+                    request.getTransactionId(), request.getAccountNumber());
 
-            if (transaction.isPaymentUrlExpired()) {
-                transactionService.updateTransactionStatus(
-                        txId,
-                        TransactionStatus.EXPIRED,
-                        "Payment URL expired"
-                );
-                return ResponseEntity.status(HttpStatus.GONE)
-                        .body(Map.of("error", "Payment session has expired"));
+            Optional<BankTransaction> optTransaction = transactionService.findById(request.getTransactionId());
+
+            if (optTransaction.isEmpty()) {
+                return ResponseEntity.notFound().build();
             }
 
+            BankTransaction transaction = optTransaction.get();
+
+            if (transaction.getStatus() != TransactionStatus.PENDING) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("error", "Transaction already processed"));
+            }
+
+            if (LocalDateTime.now().isAfter(transaction.getPaymentUrlExpiresAt())) {
+                transactionService.updateTransactionStatus(
+                        transaction.getId(),
+                        TransactionStatus.EXPIRED,
+                        "QR code expired"
+                );
+                return ResponseEntity.status(HttpStatus.GONE)
+                        .body(Map.of("error", "QR code expired"));
+            }
+
+            // Validate payer's account and check balance
+            if (request.getAccountNumber() == null || request.getAccountNumber().isBlank()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Account number is required"));
+            }
+
+            Optional<BankAccount> optAccount = bankAccountService.findByAccountNumber(request.getAccountNumber());
+            if (optAccount.isEmpty()) {
+                transactionService.updateTransactionStatus(
+                        transaction.getId(),
+                        TransactionStatus.FAILED,
+                        "Account not found"
+                );
+
+                String redirectUrl = pspService.notifyPaymentResult(
+                        transaction.getStan(),
+                        transaction.getGlobalTransactionId(),
+                        transaction.getAcquirerTimestamp(),
+                        "FAILED"
+                );
+
+                return ResponseEntity.badRequest()
+                        .body(Map.of(
+                                "error", "Account not found",
+                                "redirectUrl", redirectUrl != null ? redirectUrl : ""
+                        ));
+            }
+
+            BankAccount payerAccount = optAccount.get();
+
+            if (!bankAccountService.hasSufficientFunds(payerAccount, transaction.getAmount())) {
+                transactionService.updateTransactionStatus(
+                        transaction.getId(),
+                        TransactionStatus.FAILED,
+                        "Insufficient funds"
+                );
+
+                String redirectUrl = pspService.notifyPaymentResult(
+                        transaction.getStan(),
+                        transaction.getGlobalTransactionId(),
+                        transaction.getAcquirerTimestamp(),
+                        "FAILED"
+                );
+
+                return ResponseEntity.badRequest()
+                        .body(Map.of(
+                                "error", "Insufficient funds",
+                                "redirectUrl", redirectUrl != null ? redirectUrl : ""
+                        ));
+            }
+
+            // Transfer funds: debit payer, credit merchant
+            log.info("Payer balance before QR payment: {}", payerAccount.getBalance());
+            bankAccountService.reserveFunds(payerAccount, transaction.getAmount());
+            log.info("Payer balance after QR payment: {}", payerAccount.getBalance());
+
+            // Credit merchant account
+            Optional<BankAccount> optMerchantAccount = bankAccountService.findByAccountNumber(merchantAccountNumber);
+            if (optMerchantAccount.isPresent()) {
+                bankAccountService.releaseFunds(optMerchantAccount.get(), transaction.getAmount());
+                log.info("Merchant account credited: {}", transaction.getAmount());
+            }
+
+            transaction.setAccount(payerAccount);
             transactionService.updateTransactionStatus(
-                    txId,
+                    transaction.getId(),
                     TransactionStatus.COMPLETED,
                     null
             );
-            transaction = transactionService.findById(txId)
-                    .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
-            pspService.notifyPaymentResult(
+            // Notify PSP and get redirect URL from WebShop via PSP
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
                     "SUCCESS"
             );
-            return ResponseEntity.ok(Map.of("status", "SUCCESS"));
 
-        } catch (Exception e) {
-            log.error("Error processing QR payment", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to process payment"));
-        }
-    }
-
-    @PostMapping("/confirm")
-    public ResponseEntity<?> confirmQrPayment(@RequestBody ConfirmQrPaymentRequest request) {
-        try {
-            log.info("Manual QR payment confirmation for transaction: {}", request.getTransactionId());
-
-            Optional<BankTransaction> transaction = transactionService.findById(request.getTransactionId());
-
-            if (transaction.isEmpty()) {
-                return ResponseEntity.notFound().build();
-            }
-
-            if (transaction.get().getStatus() != TransactionStatus.PENDING) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "Transaction already processed"));
-            }
-
-            if (LocalDateTime.now().isAfter(transaction.get().getPaymentUrlExpiresAt())) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "QR code expired"));
-            }
-
-            transactionService.updateTransactionStatus(
-                    transaction.get().getId(),
-                    TransactionStatus.COMPLETED,
-                    null
-            );
-
-            try {
-                pspService.notifyPaymentResult(
-                        transaction.get().getStan(),
-                        transaction.get().getGlobalTransactionId(),
-                        transaction.get().getAcquirerTimestamp(),
-                        "SUCCESS"
-                );
-            } catch (Exception e) {
-                log.error("Failed to send callback to PSP", e);
-            }
-
-            String successUrl = "https://localhost:4200/payment/success?paymentId=" +
-                    transaction.get().getPaymentId() + "&gtx=" + transaction.get().getGlobalTransactionId();
+            log.info("QR payment completed - GTX: {}, redirect: {}",
+                    transaction.getGlobalTransactionId(), redirectUrl);
 
             return ResponseEntity.ok(Map.of(
                     "status", "success",
-                    "redirectUrl", successUrl,
+                    "redirectUrl", redirectUrl != null ? redirectUrl : "",
                     "message", "Payment confirmed successfully"
             ));
 

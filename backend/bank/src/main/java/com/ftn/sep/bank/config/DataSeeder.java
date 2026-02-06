@@ -92,6 +92,17 @@ public class DataSeeder implements CommandLineRunner {
         card3.setActive(true);
         cardRepository.save(card3);
 
+        // Merchant Account (for receiving payments)
+        if (accountRepository.findByAccountNumber("840000000095584510").isEmpty()) {
+            BankAccount merchantAccount = new BankAccount();
+            merchantAccount.setAccountNumber("840000000095584510");
+            merchantAccount.setAccountHolderName("Car Rental Agency");
+            merchantAccount.setBalance(new BigDecimal("0.00"));
+            merchantAccount.setCurrency("RSD");
+            merchantAccount.setActive(true);
+            accountRepository.save(merchantAccount);
+        }
+
         log.info("Seeded {} bank accounts with cards", accountRepository.count());
     }
 }

@@ -30,16 +30,29 @@
         <p>⏱️ QR code expires in: {{ formatTime(timeRemaining) }}</p>
       </div>
 
+      <!-- Account Number Input -->
+      <div class="account-input" *ngIf="timeRemaining > 0 && !processing">
+        <label for="accountNumber"><strong>Your Bank Account Number:</strong></label>
+        <input
+          id="accountNumber"
+          type="text"
+          [(ngModel)]="accountNumber"
+          placeholder="e.g. 1234567890"
+          class="input-field"
+        />
+        <p class="input-hint" *ngIf="accountError">{{ accountError }}</p>
+      </div>
+
       <!-- Action Buttons -->
       <div class="action-buttons" *ngIf="timeRemaining > 0 && !processing">
         <!-- Primary: Manual confirmation (simulates real banking app payment) -->
-        <button (click)="confirmPayment()" class="btn-primary">
-          ✅ I've Scanned and Paid
+        <button (click)="confirmPayment()" class="btn-primary" [disabled]="!accountNumber">
+          I've Scanned and Paid
         </button>
 
         <!-- Secondary: Test with scanner (validates QR format) -->
         <button (click)="openScanner()" class="btn-secondary">
-          📱 Test QR Code with Scanner
+          Test QR Code with Scanner
         </button>
       </div>
 

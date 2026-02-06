@@ -1,5 +1,6 @@
 import { Component, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import jsQR from 'jsqr';
@@ -20,7 +21,7 @@ interface QrValidationResult {
 @Component({
   selector: 'app-qr-scanner',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './qr-scanner.component.html',
   styleUrls: ['./qr-scanner.component.css']
 })
@@ -35,9 +36,11 @@ export class QrScannerComponent implements AfterViewInit, OnDestroy {
   error: string | null = null;
   cameraReady = false;
   validationSuccess = false;
-  
+
   qrData: QrValidationResult | null = null;
   processing = false;
+  accountNumber = '';
+  accountError: string | null = null;
 
   private animationFrameId?: number;
 
@@ -66,7 +69,7 @@ export class QrScannerComponent implements AfterViewInit, OnDestroy {
 
     try {
       let stream: MediaStream;
-      
+
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { exact: 'environment' } }
@@ -95,7 +98,7 @@ export class QrScannerComponent implements AfterViewInit, OnDestroy {
 
     } catch (err: any) {
       console.error('Camera error:', err);
-      
+
       if (err.name === 'NotAllowedError') {
         this.error = 'Camera access denied. Please allow camera access in browser settings.';
       } else if (err.name === 'NotFoundError') {
@@ -162,30 +165,45 @@ export class QrScannerComponent implements AfterViewInit, OnDestroy {
 
   private showValidationSuccess(): void {
     this.validationSuccess = true;
-    console.log('✅ Valid QR Code detected!', this.qrData);
+    console.log('Valid QR Code detected!', this.qrData);
   }
 
   confirmPayment(): void {
     if (!this.paymentId || !this.qrData) return;
 
+    if (!this.accountNumber.trim()) {
+      this.accountError = 'Please enter your bank account number';
+      return;
+    }
+
     this.processing = true;
+    this.accountError = null;
     const transactionId = parseInt(this.paymentId.replace('QR-', ''));
 
-    this.http.post<{status: string, redirectUrl: string, message: string}>(
+    this.http.post<{status: string, redirectUrl: string, message: string, error?: string}>(
       'https://localhost:8445/api/qr/confirm',
-      { transactionId: transactionId }
+      {
+        transactionId: transactionId,
+        accountNumber: this.accountNumber.trim()
+      }
     ).subscribe({
       next: (response) => {
-        console.log('✅ Payment confirmed:', response.message);
-        
-        setTimeout(() => {
-          window.location.href = response.redirectUrl;
-        }, 1000);
+        if (response.redirectUrl) {
+          setTimeout(() => {
+            window.location.href = response.redirectUrl;
+          }, 1000);
+        }
       },
       error: (err) => {
-        console.error('❌ Confirmation failed:', err);
+        console.error('Confirmation failed:', err);
         this.processing = false;
-        this.error = err.error?.error || 'Payment confirmation failed';
+        this.accountError = err.error?.error || 'Payment confirmation failed';
+
+        if (err.error?.redirectUrl) {
+          setTimeout(() => {
+            window.location.href = err.error.redirectUrl;
+          }, 2000);
+        }
       }
     });
   }
@@ -196,6 +214,8 @@ export class QrScannerComponent implements AfterViewInit, OnDestroy {
     this.qrData = null;
     this.processing = false;
     this.validationSuccess = false;
+    this.accountNumber = '';
+    this.accountError = null;
     this.scanning = true;
     this.scanLoop();
   }

@@ -22,6 +22,7 @@ export interface ProcessPaymentResponse {
   stan: string;
   status: string;
   message: string;
+  redirectUrl: string;
 }
 
 @Injectable({

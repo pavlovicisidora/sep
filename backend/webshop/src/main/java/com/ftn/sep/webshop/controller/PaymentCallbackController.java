@@ -5,6 +5,7 @@ import com.ftn.sep.webshop.model.RentalOrder;
 import com.ftn.sep.webshop.service.RentalOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,8 +19,11 @@ public class PaymentCallbackController {
 
     private final RentalOrderService rentalOrderService;
 
+    @Value("${webshop.frontend.url}")
+    private String frontendUrl;
+
     @PostMapping("/success")
-    public ResponseEntity<String> handleSuccessCallback(@RequestBody Map<String, Object> callbackData) {
+    public ResponseEntity<Map<String, String>> handleSuccessCallback(@RequestBody Map<String, Object> callbackData) {
         String merchantOrderId = (String) callbackData.get("merchantOrderId");
         String globalTransactionId = (String) callbackData.get("globalTransactionId");
 
@@ -34,11 +38,17 @@ public class PaymentCallbackController {
 
         log.info("Order {} marked as PAID", merchantOrderId);
 
-        return ResponseEntity.ok("Payment confirmed");
+        String redirectUrl = frontendUrl + "/payment/success?paymentId=" + merchantOrderId
+                + "&gtx=" + globalTransactionId;
+
+        return ResponseEntity.ok(Map.of(
+                "status", "ok",
+                "redirectUrl", redirectUrl
+        ));
     }
 
     @PostMapping("/failed")
-    public ResponseEntity<String> handleFailedCallback(@RequestBody Map<String, Object> callbackData) {
+    public ResponseEntity<Map<String, String>> handleFailedCallback(@RequestBody Map<String, Object> callbackData) {
         String merchantOrderId = (String) callbackData.get("merchantOrderId");
 
         log.info("Received FAILED callback - Order: {}", merchantOrderId);
@@ -50,11 +60,16 @@ public class PaymentCallbackController {
 
         log.info("Order {} marked as FAILED", merchantOrderId);
 
-        return ResponseEntity.ok("Payment failure recorded");
+        String redirectUrl = frontendUrl + "/payment/failed?paymentId=" + merchantOrderId;
+
+        return ResponseEntity.ok(Map.of(
+                "status", "ok",
+                "redirectUrl", redirectUrl
+        ));
     }
 
     @PostMapping("/error")
-    public ResponseEntity<String> handleErrorCallback(@RequestBody Map<String, Object> callbackData) {
+    public ResponseEntity<Map<String, String>> handleErrorCallback(@RequestBody Map<String, Object> callbackData) {
         String merchantOrderId = (String) callbackData.get("merchantOrderId");
 
         log.error("Received ERROR callback - Order: {}", merchantOrderId);
@@ -66,6 +81,11 @@ public class PaymentCallbackController {
 
         log.info("Order {} marked as FAILED due to error", merchantOrderId);
 
-        return ResponseEntity.ok("Payment error recorded");
+        String redirectUrl = frontendUrl + "/payment/failed?paymentId=" + merchantOrderId;
+
+        return ResponseEntity.ok(Map.of(
+                "status", "ok",
+                "redirectUrl", redirectUrl
+        ));
     }
 }

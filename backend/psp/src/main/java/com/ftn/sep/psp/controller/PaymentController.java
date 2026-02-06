@@ -126,7 +126,7 @@ public class PaymentController {
     }
 
     @PostMapping("/callback")
-    public ResponseEntity<String> handleBankCallback(
+    public ResponseEntity<Map<String, String>> handleBankCallback(
             @RequestHeader(value = "X-Bank-Signature", required = false) String signature,
             @RequestBody PaymentCallbackRequest request) {
         log.info("Received callback from bank for STAN: {}, Status: {}",
@@ -135,7 +135,7 @@ public class PaymentController {
         if (signature == null || signature.isEmpty()) {
             log.warn("Missing HMAC signature in Bank callback for STAN: {}", request.getStan());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Missing authentication signature");
+                    .body(Map.of("error", "Missing authentication signature"));
         }
 
         String payload = String.format("%s|%s|%s|%s",
@@ -148,7 +148,7 @@ public class PaymentController {
         if (!hmacUtil.validateSignature(payload, signature)) {
             log.warn("Invalid HMAC signature for Bank callback - STAN: {}", request.getStan());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Invalid authentication signature");
+                    .body(Map.of("error", "Invalid authentication signature"));
         }
         log.info("Bank callback HMAC validated successfully for STAN: {}", request.getStan());
 
@@ -181,9 +181,12 @@ public class PaymentController {
 
         log.info("Updated payment session status to: {}", newStatus);
 
-        notifyMerchant(callbackUrl, session, request);
+        // Notify merchant (WebShop) and get the browser redirect URL
+        String redirectUrl = notifyMerchant(callbackUrl, session, request);
 
-        return ResponseEntity.ok("Callback processed successfully");
+        log.info("Returning redirect URL to bank: {}", redirectUrl);
+
+        return ResponseEntity.ok(Map.of("redirectUrl", redirectUrl != null ? redirectUrl : ""));
     }
 
     @GetMapping("/status/{stan}")
@@ -221,8 +224,11 @@ public class PaymentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    private void notifyMerchant(String callbackUrl, PaymentSession session,
-                                PaymentCallbackRequest bankCallback) {
+    /**
+     * Notifies the merchant (WebShop) about payment result and returns the browser redirect URL.
+     */
+    private String notifyMerchant(String callbackUrl, PaymentSession session,
+                                  PaymentCallbackRequest bankCallback) {
         log.info("Notifying merchant at: {}", callbackUrl);
 
         try {
@@ -240,12 +246,21 @@ public class PaymentController {
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(callbackData, headers);
 
-            restTemplate.postForEntity(callbackUrl, entity, String.class);
+            ResponseEntity<Map> response = restTemplate.postForEntity(callbackUrl, entity, Map.class);
+
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody != null && responseBody.containsKey("redirectUrl")) {
+                String redirectUrl = (String) responseBody.get("redirectUrl");
+                log.info("Merchant returned redirect URL: {}", redirectUrl);
+                return redirectUrl;
+            }
 
             log.info("Successfully notified merchant - Order ID: {}", session.getMerchantOrderId());
+            return null;
 
         } catch (Exception e) {
             log.error("Error notifying merchant at: " + callbackUrl, e);
+            return null;
         }
     }
 
