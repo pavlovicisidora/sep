@@ -14,7 +14,7 @@ public class CardValidationService {
 
     public boolean validatePanWithLuhn(String pan) {
         if (pan == null || !pan.matches("\\d{13,19}")) {
-            log.warn("Invalid PAN format: {}", pan);
+            log.warn("Invalid PAN format (length: {})", pan != null ? pan.length() : "null");
             return false;
         }
 
@@ -90,7 +90,7 @@ public class CardValidationService {
             return CardType.DINNERS;
         }
 
-        log.warn("Unknown card type for PAN starting with: {}", pan.substring(0, 2));
+        log.warn("Unknown card type for PAN starting with: {}", pan.substring(0, 1));
         return null;
     }
 

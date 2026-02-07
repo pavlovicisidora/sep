@@ -10,6 +10,4 @@ import java.util.Optional;
 public interface MerchantConfigRepository extends JpaRepository<MerchantConfig, Long> {
 
     Optional<MerchantConfig> findByMerchantId(String merchantId);
-
-    Optional<MerchantConfig> findByMerchantIdAndMerchantPassword(String merchantId, String merchantPassword);
 }

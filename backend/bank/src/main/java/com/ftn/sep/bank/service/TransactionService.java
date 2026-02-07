@@ -17,6 +17,7 @@ import java.util.UUID;
 public class TransactionService {
 
     private final BankTransactionRepository transactionRepository;
+    private final AuditService auditService;
 
     @Transactional
     public BankTransaction createTransaction(BankTransaction transaction) {
@@ -47,6 +48,7 @@ public class TransactionService {
         BankTransaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
+        String oldStatus = transaction.getStatus().name();
         transaction.setStatus(status);
         if (failureReason != null) {
             transaction.setFailureReason(failureReason);
@@ -54,6 +56,13 @@ public class TransactionService {
 
         transactionRepository.save(transaction);
         log.info("Updated transaction {} to status: {}", transactionId, status);
+
+        auditService.logStatusChange(
+                String.valueOf(transactionId),
+                oldStatus,
+                status.name(),
+                failureReason
+        );
     }
 
     private String generatePaymentId() {

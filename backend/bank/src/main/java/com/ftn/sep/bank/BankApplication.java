@@ -3,6 +3,7 @@ package com.ftn.sep.bank;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -10,6 +11,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @SpringBootApplication
 @EnableScheduling
+@EnableAsync
 public class BankApplication {
 
 	public static void main(String[] args) {
@@ -23,4 +25,5 @@ public class BankApplication {
 				.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
 		return http.build();
 	}
+
 }

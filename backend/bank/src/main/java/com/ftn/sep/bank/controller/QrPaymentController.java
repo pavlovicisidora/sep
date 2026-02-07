@@ -7,11 +7,13 @@ import com.ftn.sep.bank.model.BankAccount;
 import com.ftn.sep.bank.model.BankTransaction;
 import com.ftn.sep.bank.model.TransactionStatus;
 import com.ftn.sep.bank.security.HmacUtil;
+import com.ftn.sep.bank.service.AuditService;
 import com.ftn.sep.bank.service.BankAccountService;
 import com.ftn.sep.bank.service.PSPService;
 import com.ftn.sep.bank.service.TransactionService;
 import com.ftn.sep.bank.util.IpsQrGenerator;
 import com.ftn.sep.bank.util.IpsQrValidator;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +39,7 @@ public class QrPaymentController {
     private final IpsQrValidator qrValidator;
     private final HmacUtil hmacUtil;
     private final PSPService pspService;
+    private final AuditService auditService;
 
     @Value("${psp.merchant.bank.id}")
     private String expectedMerchantId;
@@ -172,20 +175,29 @@ public class QrPaymentController {
     }
 
     @PostMapping("/confirm")
-    public ResponseEntity<?> confirmQrPayment(@RequestBody ConfirmQrPaymentRequest request) {
+    public ResponseEntity<?> confirmQrPayment(@RequestBody ConfirmQrPaymentRequest request,
+                                               HttpServletRequest httpRequest) {
         try {
             log.info("QR payment confirmation for transaction: {}, account: {}",
                     request.getTransactionId(), request.getAccountNumber());
 
+            String clientIp = httpRequest.getRemoteAddr();
+            String transactionId = String.valueOf(request.getTransactionId());
+            String accountNumber = request.getAccountNumber() != null ? request.getAccountNumber() : "N/A";
+
             Optional<BankTransaction> optTransaction = transactionService.findById(request.getTransactionId());
 
             if (optTransaction.isEmpty()) {
+                auditService.logQrPaymentAttempt(transactionId, accountNumber,
+                        "FAILURE", "Transaction not found", clientIp);
                 return ResponseEntity.notFound().build();
             }
 
             BankTransaction transaction = optTransaction.get();
 
             if (transaction.getStatus() != TransactionStatus.PENDING) {
+                auditService.logQrPaymentAttempt(transactionId, accountNumber,
+                        "FAILURE", "Transaction already processed", clientIp);
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(Map.of("error", "Transaction already processed"));
             }
@@ -196,11 +208,15 @@ public class QrPaymentController {
                         TransactionStatus.EXPIRED,
                         "QR code expired"
                 );
+                auditService.logQrPaymentAttempt(transactionId, accountNumber,
+                        "FAILURE", "QR code expired", clientIp);
                 return ResponseEntity.status(HttpStatus.GONE)
                         .body(Map.of("error", "QR code expired"));
             }
 
             if (request.getAccountNumber() == null || request.getAccountNumber().isBlank()) {
+                auditService.logQrPaymentAttempt(transactionId, accountNumber,
+                        "FAILURE", "Account number missing", clientIp);
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Account number is required"));
             }
@@ -219,6 +235,9 @@ public class QrPaymentController {
                         transaction.getAcquirerTimestamp(),
                         "FAILED"
                 );
+
+                auditService.logQrPaymentAttempt(transactionId, accountNumber,
+                        "FAILURE", "Account not found", clientIp);
 
                 return ResponseEntity.badRequest()
                         .body(Map.of(
@@ -242,6 +261,9 @@ public class QrPaymentController {
                         transaction.getAcquirerTimestamp(),
                         "FAILED"
                 );
+
+                auditService.logQrPaymentAttempt(transactionId, accountNumber,
+                        "FAILURE", "Insufficient funds", clientIp);
 
                 return ResponseEntity.badRequest()
                         .body(Map.of(
@@ -277,6 +299,9 @@ public class QrPaymentController {
             log.info("QR payment completed - GTX: {}, redirect: {}",
                     transaction.getGlobalTransactionId(), redirectUrl);
 
+            auditService.logQrPaymentAttempt(transactionId, accountNumber,
+                    "SUCCESS", "QR payment processed successfully", clientIp);
+
             return ResponseEntity.ok(Map.of(
                     "status", "success",
                     "redirectUrl", redirectUrl != null ? redirectUrl : "",
@@ -285,10 +310,16 @@ public class QrPaymentController {
 
         } catch (ObjectOptimisticLockingFailureException e) {
             log.warn("Concurrent QR payment attempt detected for transaction: {}", request.getTransactionId());
+            auditService.logQrPaymentAttempt(String.valueOf(request.getTransactionId()),
+                    request.getAccountNumber() != null ? request.getAccountNumber() : "N/A",
+                    "FAILURE", "Concurrent payment attempt blocked", httpRequest.getRemoteAddr());
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "Transaction already processed"));
         } catch (Exception e) {
             log.error("Error confirming QR payment", e);
+            auditService.logQrPaymentAttempt(String.valueOf(request.getTransactionId()),
+                    request.getAccountNumber() != null ? request.getAccountNumber() : "N/A",
+                    "ERROR", "QR payment processing error: " + e.getMessage(), httpRequest.getRemoteAddr());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Payment confirmation failed"));
         }

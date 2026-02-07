@@ -1,16 +1,16 @@
 package com.ftn.sep.bank.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "card_info")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode
 @NoArgsConstructor
 @AllArgsConstructor
 public class CardInfo {
@@ -23,9 +23,13 @@ public class CardInfo {
     @JoinColumn(name = "account_id", nullable = false)
     private BankAccount account;
 
-    // Primary Account Number
-    @Column(unique = true, nullable = false, length = 16)
+    // Primary Account Number - encrypted with AES-256-GCM
+    @Column(nullable = false, length = 500)
     private String pan;
+
+    // SHA-256 hash of PAN for lookups
+    @Column(unique = true, nullable = false, length = 64)
+    private String panHash;
 
     @Column(nullable = false)
     private String cardHolderName;
@@ -34,9 +38,6 @@ public class CardInfo {
     @Column(nullable = false)
     private LocalDate expiryDate;
 
-    // CVV
-    @Column(nullable = false, length = 3)
-    private String securityCode;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -51,5 +52,16 @@ public class CardInfo {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+    }
+
+    @Override
+    public String toString() {
+        return "CardInfo{" +
+                "id=" + id +
+                ", cardHolderName='" + cardHolderName + '\'' +
+                ", pan='[ENCRYPTED]'" +
+                ", cardType=" + cardType +
+                ", active=" + active +
+                '}';
     }
 }

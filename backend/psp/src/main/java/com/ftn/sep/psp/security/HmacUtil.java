@@ -18,6 +18,9 @@ public class HmacUtil {
     @Value("${bank.hmac.secret}")
     private String hmacSecret;
 
+    @Value("${merchant.hmac.secret}")
+    private String merchantHmacSecret;
+
     private static final String HMAC_ALGORITHM = "HmacSHA256";
 
     public String generateSignature(String payload) {
@@ -64,5 +67,21 @@ public class HmacUtil {
 
     public String createPayload(String merchantId, String amount, String currency, String stan, String timestamp) {
         return String.format("%s|%s|%s|%s|%s", merchantId, amount, currency, stan, timestamp);
+    }
+
+    public String generateMerchantSignature(String payload) {
+        try {
+            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
+                    merchantHmacSecret.getBytes(StandardCharsets.UTF_8),
+                    HMAC_ALGORITHM
+            );
+            mac.init(secretKeySpec);
+            byte[] hmacBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hmacBytes);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            log.error("Error generating merchant HMAC signature", e);
+            throw new RuntimeException("Failed to generate merchant HMAC signature", e);
+        }
     }
 }

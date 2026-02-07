@@ -7,6 +7,7 @@ import com.ftn.sep.bank.model.CardInfo;
 import com.ftn.sep.bank.model.TransactionStatus;
 import com.ftn.sep.bank.security.HmacUtil;
 import com.ftn.sep.bank.service.*;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class PaymentController {
     private final BankAccountService bankAccountService;
     private final PSPService pspService;
     private final HmacUtil hmacUtil;
+    private final AuditService auditService;
 
     @Value("${psp.merchant.bank.id}")
     private String merchantId;
@@ -126,9 +128,13 @@ public class PaymentController {
 
     @PostMapping("/process")
     public ResponseEntity<ProcessPaymentResponse> processPayment(
-            @Valid @RequestBody ProcessPaymentRequest request) {
+            @Valid @RequestBody ProcessPaymentRequest request,
+            HttpServletRequest httpRequest) {
 
         log.info("Processing payment for Payment ID: {}", request.getPaymentId());
+        String clientIp = httpRequest.getRemoteAddr();
+        String panLastFour = request.getPan() != null && request.getPan().length() >= 4
+                ? request.getPan().substring(request.getPan().length() - 4) : "????";
 
         BankTransaction transaction = transactionService.findByPaymentId(request.getPaymentId())
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
@@ -139,6 +145,8 @@ public class PaymentController {
                     TransactionStatus.EXPIRED,
                     "Payment URL expired"
             );
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Payment session expired", clientIp);
             return ResponseEntity.status(HttpStatus.GONE)
                     .body(new ProcessPaymentResponse(
                             null,
@@ -150,6 +158,8 @@ public class PaymentController {
         }
 
         if (transaction.getStatus() != TransactionStatus.PENDING) {
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Transaction already processed", clientIp);
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
@@ -160,6 +170,7 @@ public class PaymentController {
                     ));
         }
 
+        // Stage 1: Format validation (Luhn, expiry format, CVV format)
         if (!cardValidationService.validateCard(
                 request.getPan(),
                 request.getExpiryDate(),
@@ -178,6 +189,9 @@ public class PaymentController {
                     "FAILED"
             );
 
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Invalid card data format", clientIp);
+
             return ResponseEntity.badRequest()
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
@@ -188,6 +202,7 @@ public class PaymentController {
                     ));
         }
 
+        // Stage 2: Card data validation against database
         if (!cardService.validateCardData(
                 request.getPan(),
                 request.getCardHolderName(),
@@ -207,6 +222,9 @@ public class PaymentController {
                     "FAILED"
             );
 
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Card validation failed", clientIp);
+
             return ResponseEntity.badRequest()
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
@@ -222,6 +240,7 @@ public class PaymentController {
 
         BankAccount account = card.getAccount();
 
+        // Stage 3: Balance check
         if (!bankAccountService.hasSufficientFunds(account, transaction.getAmount())) {
             transactionService.updateTransactionStatus(
                     transaction.getId(),
@@ -236,6 +255,9 @@ public class PaymentController {
                     "FAILED"
             );
 
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Insufficient funds", clientIp);
+
             return ResponseEntity.badRequest()
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
@@ -246,6 +268,7 @@ public class PaymentController {
                     ));
         }
 
+        // Stage 4: Reserve funds and complete
         try {
             log.info("Balance before the payment: {}", account.getBalance());
 
@@ -269,6 +292,9 @@ public class PaymentController {
                     "SUCCESS"
             );
 
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "SUCCESS", "Payment processed successfully", clientIp);
+
             return ResponseEntity.ok(new ProcessPaymentResponse(
                     transaction.getGlobalTransactionId(),
                     transaction.getStan(),
@@ -279,6 +305,8 @@ public class PaymentController {
 
         } catch (ObjectOptimisticLockingFailureException e) {
             log.warn("Concurrent payment attempt detected for Payment ID: {}", request.getPaymentId());
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Concurrent payment attempt blocked", clientIp);
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
@@ -301,6 +329,9 @@ public class PaymentController {
                     transaction.getAcquirerTimestamp(),
                     "ERROR"
             );
+
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "ERROR", "Payment processing error: " + e.getMessage(), clientIp);
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ProcessPaymentResponse(

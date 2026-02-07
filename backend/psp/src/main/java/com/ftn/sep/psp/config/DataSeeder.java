@@ -5,6 +5,7 @@ import com.ftn.sep.psp.repository.MerchantConfigRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 public class DataSeeder implements CommandLineRunner {
 
     private final MerchantConfigRepository merchantConfigRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
@@ -27,11 +29,11 @@ public class DataSeeder implements CommandLineRunner {
 
         MerchantConfig webshop = new MerchantConfig();
         webshop.setMerchantId("WEBSHOP-001");
-        webshop.setMerchantPassword("webshop-secret-key-123");
+        webshop.setMerchantPassword(passwordEncoder.encode("webshop-secret-key-123"));
         webshop.setMerchantName("Car Rental Agency");
         webshop.setActive(true);
         merchantConfigRepository.save(webshop);
 
-        log.info("Seeded {} merchants", merchantConfigRepository.count());
+        log.info("Seeded {} merchants (passwords hashed with BCrypt)", merchantConfigRepository.count());
     }
 }

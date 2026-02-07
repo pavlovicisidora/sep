@@ -2,9 +2,13 @@ package com.ftn.sep.bank.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode
 public class ProcessPaymentRequest {
 
     @NotBlank(message = "Payment ID is required")
@@ -24,4 +28,16 @@ public class ProcessPaymentRequest {
     @NotBlank(message = "Security code is required")
     @Pattern(regexp = "\\d{3,4}", message = "Security code must be 3 or 4 digits")
     private String securityCode;
+
+    @Override
+    public String toString() {
+        return "ProcessPaymentRequest{" +
+                "paymentId='" + paymentId + '\'' +
+                ", pan='****" + (pan != null && pan.length() >= 4
+                    ? pan.substring(pan.length() - 4) : "****") + '\'' +
+                ", cardHolderName='" + cardHolderName + '\'' +
+                ", expiryDate='" + expiryDate + '\'' +
+                ", securityCode='***'" +
+                '}';
+    }
 }

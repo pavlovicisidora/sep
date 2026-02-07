@@ -233,12 +233,22 @@ public class PaymentController {
             callbackData.put("stan", session.getStan());
             callbackData.put("globalTransactionId", bankCallback.getGlobalTransactionId());
             callbackData.put("status", bankCallback.getStatus());
-            callbackData.put("amount", session.getAmount());
+            String amountStr = session.getAmount().toPlainString();
+            callbackData.put("amount", amountStr);
             callbackData.put("currency", session.getCurrency());
             callbackData.put("timestamp", bankCallback.getAcquirerTimestamp());
 
+            // Sign callback with HMAC for webshop verification
+            String signaturePayload = String.format("%s|%s|%s|%s",
+                    session.getMerchantOrderId(),
+                    bankCallback.getStatus(),
+                    amountStr,
+                    session.getCurrency());
+            String signature = hmacUtil.generateMerchantSignature(signaturePayload);
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-PSP-Signature", signature);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(callbackData, headers);
 
