@@ -46,8 +46,30 @@ public class HmacUtil {
         }
     }
 
+    public String generateSignature(String payload) {
+        try {
+            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
+                    hmacSecret.getBytes(StandardCharsets.UTF_8),
+                    HMAC_ALGORITHM
+            );
+            mac.init(secretKeySpec);
+            byte[] hmacBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hmacBytes);
+
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            log.error("Error generating HMAC signature", e);
+            throw new RuntimeException("Failed to generate HMAC signature", e);
+        }
+    }
+
     public String createPayload(String merchantId, String amount, String currency,
                                 String stan, String timestamp) {
         return String.format("%s|%s|%s|%s|%s", merchantId, amount, currency, stan, timestamp);
+    }
+
+    public String createPayload(String stan, String status, String globalTransactionId,
+                                String timestamp) {
+        return String.format("%s|%s|%s|%s", stan, status, globalTransactionId, timestamp);
     }
 }

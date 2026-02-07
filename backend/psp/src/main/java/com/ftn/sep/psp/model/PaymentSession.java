@@ -57,7 +57,6 @@ public class PaymentSession {
 
     private LocalDateTime acquirerTimestamp;
 
-    // Status
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentStatus status = PaymentStatus.PENDING;

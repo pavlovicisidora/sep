@@ -9,5 +9,5 @@ import java.util.Optional;
 @Repository
 public interface CardInfoRepository extends JpaRepository<CardInfo, Long> {
 
-    Optional<CardInfo> findByPan(String pan);
+    Optional<CardInfo> findByPanHash(String panHash);
 }

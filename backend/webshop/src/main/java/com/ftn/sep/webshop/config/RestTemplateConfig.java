@@ -19,7 +19,6 @@ public class RestTemplateConfig {
 
     @Bean
     public RestTemplate restTemplate() throws Exception {
-        // Trust all certificates (ONLY for development with self-signed certs)
         SSLContext sslContext = SSLContextBuilder.create()
                 .loadTrustMaterial(new TrustAllStrategy())
                 .build();

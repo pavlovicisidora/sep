@@ -12,4 +12,5 @@ public class ProcessPaymentResponse {
     private String stan;
     private String status;
     private String message;
+    private String redirectUrl;
 }

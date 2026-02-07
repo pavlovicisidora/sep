@@ -3,6 +3,7 @@ package com.ftn.sep.psp.service;
 import com.ftn.sep.psp.model.MerchantConfig;
 import com.ftn.sep.psp.repository.MerchantConfigRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -12,11 +13,12 @@ import java.util.Optional;
 public class MerchantService {
 
     private final MerchantConfigRepository merchantConfigRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public boolean validateMerchant(String merchantId, String merchantPassword) {
-        return merchantConfigRepository
-                .findByMerchantIdAndMerchantPassword(merchantId, merchantPassword)
-                .map(MerchantConfig::getActive)
+        return merchantConfigRepository.findByMerchantId(merchantId)
+                .map(merchant -> merchant.getActive()
+                        && passwordEncoder.matches(merchantPassword, merchant.getMerchantPassword()))
                 .orElse(false);
     }
 

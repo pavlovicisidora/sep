@@ -3,6 +3,7 @@ package com.ftn.sep.psp.controller;
 import com.ftn.sep.psp.dto.*;
 import com.ftn.sep.psp.model.PaymentSession;
 import com.ftn.sep.psp.model.PaymentStatus;
+import com.ftn.sep.psp.security.HmacUtil;
 import com.ftn.sep.psp.service.MerchantService;
 import com.ftn.sep.psp.service.PaymentProviderService;
 import com.ftn.sep.psp.service.PaymentSessionService;
@@ -28,6 +29,7 @@ public class PaymentController {
     private final PaymentProviderService paymentProviderService;
     private final MerchantService merchantService;
     private final RestTemplate restTemplate;
+    private final HmacUtil hmacUtil;
 
     @PostMapping("/initialize")
     public ResponseEntity<InitializePaymentResponse> initializePayment(
@@ -124,9 +126,31 @@ public class PaymentController {
     }
 
     @PostMapping("/callback")
-    public ResponseEntity<String> handleBankCallback(@RequestBody PaymentCallbackRequest request) {
+    public ResponseEntity<Map<String, String>> handleBankCallback(
+            @RequestHeader(value = "X-Bank-Signature", required = false) String signature,
+            @RequestBody PaymentCallbackRequest request) {
         log.info("Received callback from bank for STAN: {}, Status: {}",
                 request.getStan(), request.getStatus());
+
+        if (signature == null || signature.isEmpty()) {
+            log.warn("Missing HMAC signature in Bank callback for STAN: {}", request.getStan());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Missing authentication signature"));
+        }
+
+        String payload = String.format("%s|%s|%s|%s",
+                request.getStan(),
+                request.getStatus(),
+                request.getGlobalTransactionId(),
+                request.getAcquirerTimestamp().toString()
+        );
+
+        if (!hmacUtil.validateSignature(payload, signature)) {
+            log.warn("Invalid HMAC signature for Bank callback - STAN: {}", request.getStan());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Invalid authentication signature"));
+        }
+        log.info("Bank callback HMAC validated successfully for STAN: {}", request.getStan());
 
         PaymentSession session = paymentSessionService.findByStan(request.getStan())
                 .orElseThrow(() -> new RuntimeException("Payment session not found"));
@@ -157,9 +181,11 @@ public class PaymentController {
 
         log.info("Updated payment session status to: {}", newStatus);
 
-        notifyMerchant(callbackUrl, session, request);
+        String redirectUrl = notifyMerchant(callbackUrl, session, request);
 
-        return ResponseEntity.ok("Callback processed successfully");
+        log.info("Returning redirect URL to bank: {}", redirectUrl);
+
+        return ResponseEntity.ok(Map.of("redirectUrl", redirectUrl != null ? redirectUrl : ""));
     }
 
     @GetMapping("/status/{stan}")
@@ -197,8 +223,8 @@ public class PaymentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    private void notifyMerchant(String callbackUrl, PaymentSession session,
-                                PaymentCallbackRequest bankCallback) {
+    private String notifyMerchant(String callbackUrl, PaymentSession session,
+                                  PaymentCallbackRequest bankCallback) {
         log.info("Notifying merchant at: {}", callbackUrl);
 
         try {
@@ -207,21 +233,40 @@ public class PaymentController {
             callbackData.put("stan", session.getStan());
             callbackData.put("globalTransactionId", bankCallback.getGlobalTransactionId());
             callbackData.put("status", bankCallback.getStatus());
-            callbackData.put("amount", session.getAmount());
+            String amountStr = session.getAmount().toPlainString();
+            callbackData.put("amount", amountStr);
             callbackData.put("currency", session.getCurrency());
             callbackData.put("timestamp", bankCallback.getAcquirerTimestamp());
 
+            // Sign callback with HMAC for webshop verification
+            String signaturePayload = String.format("%s|%s|%s|%s",
+                    session.getMerchantOrderId(),
+                    bankCallback.getStatus(),
+                    amountStr,
+                    session.getCurrency());
+            String signature = hmacUtil.generateMerchantSignature(signaturePayload);
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-PSP-Signature", signature);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(callbackData, headers);
 
-            restTemplate.postForEntity(callbackUrl, entity, String.class);
+            ResponseEntity<Map> response = restTemplate.postForEntity(callbackUrl, entity, Map.class);
+
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody != null && responseBody.containsKey("redirectUrl")) {
+                String redirectUrl = (String) responseBody.get("redirectUrl");
+                log.info("Merchant returned redirect URL: {}", redirectUrl);
+                return redirectUrl;
+            }
 
             log.info("Successfully notified merchant - Order ID: {}", session.getMerchantOrderId());
+            return null;
 
         } catch (Exception e) {
             log.error("Error notifying merchant at: " + callbackUrl, e);
+            return null;
         }
     }
 

@@ -2,6 +2,7 @@ package com.ftn.sep.bank.service;
 
 import com.ftn.sep.bank.model.CardInfo;
 import com.ftn.sep.bank.repository.CardInfoRepository;
+import com.ftn.sep.bank.security.EncryptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,9 +16,11 @@ import java.util.Optional;
 public class CardService {
 
     private final CardInfoRepository cardInfoRepository;
+    private final EncryptionService encryptionService;
 
     public Optional<CardInfo> findByPan(String pan) {
-        return cardInfoRepository.findByPan(pan);
+        String panHash = encryptionService.hash(pan);
+        return cardInfoRepository.findByPanHash(panHash);
     }
 
     public boolean validateCardData(String pan, String cardHolderName,
@@ -41,10 +44,8 @@ public class CardService {
             return false;
         }
 
-        if (!card.getSecurityCode().equals(securityCode)) {
-            log.warn("Security code mismatch");
-            return false;
-        }
+        // CVV is validated in-memory only (format check in CardValidationService)
+        // PCI DSS: SAD (CVV) is never stored after authorization
 
         String[] parts = expiryDate.split("/");
         int month = Integer.parseInt(parts[0]);

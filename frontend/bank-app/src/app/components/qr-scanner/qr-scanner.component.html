@@ -1,0 +1,95 @@
+<div class="qr-scanner-container">
+  <div class="scanner-card">
+    <h2>QR Code Scanner</h2>
+    <p class="subtitle">Scan QR code to validate payment details</p>
+
+    <!-- Camera View -->
+    <div class="camera-container" *ngIf="!validationSuccess && !error">
+      <video #video autoplay playsinline class="camera-view"></video>
+      <canvas #canvas style="display: none;"></canvas>
+      
+      <div class="scan-frame" *ngIf="scanning && !scanned"></div>
+    </div>
+
+    <!-- Status Messages -->
+    <div class="status-section">
+      <div *ngIf="!cameraReady && !error && !validationSuccess" class="status-message">
+        <div class="spinner"></div>
+        <p>Initializing camera...</p>
+      </div>
+
+      <div *ngIf="cameraReady && scanning && !scanned" class="status-message success">
+        <p>📷 Camera ready - Point at QR code</p>
+      </div>
+
+      <div *ngIf="scanned && !validationSuccess && !error" class="status-message">
+        <div class="spinner"></div>
+        <p>Validating QR code...</p>
+      </div>
+
+      <!-- Validation Success -->
+      <div *ngIf="validationSuccess && qrData" class="validation-success">
+        <div class="success-icon">✅</div>
+        <h3>Valid QR Code Detected!</h3>
+        
+        <div class="payment-details">
+          <h4>Payment Details:</h4>
+          <div class="detail-row">
+            <span>Recipient:</span>
+            <strong>{{ qrData.parsedData.N }}</strong>
+          </div>
+          <div class="detail-row">
+            <span>Amount:</span>
+            <strong>{{ qrData.parsedData.I }}</strong>
+          </div>
+          <div class="detail-row">
+            <span>Account:</span>
+            <strong>{{ qrData.parsedData.R }}</strong>
+          </div>
+          <div class="detail-row" *ngIf="qrData.parsedData.S">
+            <span>Purpose:</span>
+            <strong>{{ qrData.parsedData.S }}</strong>
+          </div>
+        </div>
+
+        <div class="account-input">
+          <label for="scannerAccountNumber"><strong>Your Bank Account Number:</strong></label>
+          <input
+            id="scannerAccountNumber"
+            type="text"
+            [(ngModel)]="accountNumber"
+            placeholder="e.g. 1234567890"
+            class="input-field"
+          />
+          <p class="input-hint error-text" *ngIf="accountError">{{ accountError }}</p>
+        </div>
+
+        <div class="action-buttons">
+          <button (click)="confirmPayment()" [disabled]="processing || !accountNumber" class="btn-confirm">
+            <span *ngIf="!processing">Confirm Payment</span>
+            <span *ngIf="processing">Processing...</span>
+          </button>
+          <button (click)="resetScanner()" [disabled]="processing" class="btn-retry">
+            Scan Again
+          </button>
+        </div>
+      </div>
+
+      <!-- Error State -->
+      <div *ngIf="error" class="status-message error">
+        <p>❌ {{ error }}</p>
+        <button (click)="resetScanner()" class="btn-retry">Try Again</button>
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions" *ngIf="!scanned && !error && cameraReady">
+      <h4>Instructions:</h4>
+      <ul>
+        <li>Position QR code within the frame</li>
+        <li>Hold steady until detected</li>
+        <li>Ensure good lighting</li>
+      </ul>
+    </div>
+  </div>
+</div>

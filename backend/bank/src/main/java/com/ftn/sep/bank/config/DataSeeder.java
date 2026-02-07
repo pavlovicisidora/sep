@@ -5,6 +5,7 @@ import com.ftn.sep.bank.model.CardInfo;
 import com.ftn.sep.bank.model.CardType;
 import com.ftn.sep.bank.repository.BankAccountRepository;
 import com.ftn.sep.bank.repository.CardInfoRepository;
+import com.ftn.sep.bank.security.EncryptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -20,6 +21,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private final BankAccountRepository accountRepository;
     private final CardInfoRepository cardRepository;
+    private final EncryptionService encryptionService;
 
     @Override
     public void run(String... args) {
@@ -41,13 +43,13 @@ public class DataSeeder implements CommandLineRunner {
         account1.setActive(true);
         accountRepository.save(account1);
 
-        // Card 1 - Visa
+        // Card 1 - Visa (PAN encrypted, no CVV stored - PCI DSS)
         CardInfo card1 = new CardInfo();
         card1.setAccount(account1);
-        card1.setPan("4532015112830366");
+        card1.setPan(encryptionService.encrypt("4532015112830366"));
+        card1.setPanHash(encryptionService.hash("4532015112830366"));
         card1.setCardHolderName("Marko Marković");
         card1.setExpiryDate(LocalDate.of(2027, 12, 1));
-        card1.setSecurityCode("123");
         card1.setCardType(CardType.VISA);
         card1.setActive(true);
         cardRepository.save(card1);
@@ -61,13 +63,13 @@ public class DataSeeder implements CommandLineRunner {
         account2.setActive(true);
         accountRepository.save(account2);
 
-        // Card 2 - Mastercard
+        // Card 2 - Mastercard (PAN encrypted, no CVV stored - PCI DSS)
         CardInfo card2 = new CardInfo();
         card2.setAccount(account2);
-        card2.setPan("5425233430109903");
+        card2.setPan(encryptionService.encrypt("5425233430109903"));
+        card2.setPanHash(encryptionService.hash("5425233430109903"));
         card2.setCardHolderName("Ana Anić");
         card2.setExpiryDate(LocalDate.of(2026, 6, 1));
-        card2.setSecurityCode("456");
         card2.setCardType(CardType.MASTERCARD);
         card2.setActive(true);
         cardRepository.save(card2);
@@ -81,17 +83,28 @@ public class DataSeeder implements CommandLineRunner {
         account3.setActive(true);
         accountRepository.save(account3);
 
-        // Card 3 - expired
+        // Card 3 - expired (PAN encrypted, no CVV stored - PCI DSS)
         CardInfo card3 = new CardInfo();
         card3.setAccount(account3);
-        card3.setPan("4024007134564842"); // Valid Luhn
+        card3.setPan(encryptionService.encrypt("4024007134564842"));
+        card3.setPanHash(encryptionService.hash("4024007134564842"));
         card3.setCardHolderName("Petar Petrović");
         card3.setExpiryDate(LocalDate.of(2023, 12, 1));
-        card3.setSecurityCode("789");
         card3.setCardType(CardType.VISA);
         card3.setActive(true);
         cardRepository.save(card3);
 
-        log.info("Seeded {} bank accounts with cards", accountRepository.count());
+        // Merchant Account (for receiving payments)
+        if (accountRepository.findByAccountNumber("840000000095584510").isEmpty()) {
+            BankAccount merchantAccount = new BankAccount();
+            merchantAccount.setAccountNumber("840000000095584510");
+            merchantAccount.setAccountHolderName("Car Rental Agency");
+            merchantAccount.setBalance(new BigDecimal("0.00"));
+            merchantAccount.setCurrency("RSD");
+            merchantAccount.setActive(true);
+            accountRepository.save(merchantAccount);
+        }
+
+        log.info("Seeded {} bank accounts with cards (PAN encrypted, no CVV stored)", accountRepository.count());
     }
 }

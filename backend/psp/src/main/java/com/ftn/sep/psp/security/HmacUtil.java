@@ -18,6 +18,9 @@ public class HmacUtil {
     @Value("${bank.hmac.secret}")
     private String hmacSecret;
 
+    @Value("${merchant.hmac.secret}")
+    private String merchantHmacSecret;
+
     private static final String HMAC_ALGORITHM = "HmacSHA256";
 
     public String generateSignature(String payload) {
@@ -36,7 +39,49 @@ public class HmacUtil {
         }
     }
 
+    public boolean validateSignature(String payload, String receivedSignature) {
+        try {
+            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
+                    hmacSecret.getBytes(StandardCharsets.UTF_8),
+                    HMAC_ALGORITHM
+            );
+            mac.init(secretKeySpec);
+            byte[] hmacBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            String calculatedSignature = Base64.getEncoder().encodeToString(hmacBytes);
+
+            boolean isValid = calculatedSignature.equals(receivedSignature);
+
+            if (!isValid) {
+                log.warn("HMAC validation failed. Expected: {}, Received: {}",
+                        calculatedSignature, receivedSignature);
+            }
+
+            return isValid;
+
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            log.error("Error validating HMAC signature", e);
+            return false;
+        }
+    }
+
     public String createPayload(String merchantId, String amount, String currency, String stan, String timestamp) {
         return String.format("%s|%s|%s|%s|%s", merchantId, amount, currency, stan, timestamp);
+    }
+
+    public String generateMerchantSignature(String payload) {
+        try {
+            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
+                    merchantHmacSecret.getBytes(StandardCharsets.UTF_8),
+                    HMAC_ALGORITHM
+            );
+            mac.init(secretKeySpec);
+            byte[] hmacBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hmacBytes);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            log.error("Error generating merchant HMAC signature", e);
+            throw new RuntimeException("Failed to generate merchant HMAC signature", e);
+        }
     }
 }

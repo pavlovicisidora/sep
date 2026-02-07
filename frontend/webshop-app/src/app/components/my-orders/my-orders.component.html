@@ -58,7 +58,7 @@
           <div class="detail-row" *ngIf="order.paymentMethod">
             <span class="label">Payment Method:</span>
             <span class="value payment-method">
-              <span class="badge-method" [ngClass]="'method-' + order.paymentMethod?.toLowerCase()">
+              <span class="badge-method" [ngClass]="'method-' + order.paymentMethod.toLowerCase()">
                 {{ getPaymentMethodName(order.paymentMethod) }}
               </span>
             </span>
@@ -73,7 +73,7 @@
         <div class="order-actions" *ngIf="canPay(order) || canCheckStatus(order)">
           <button 
             *ngIf="canPay(order)" 
-            (click)="payOrder(order.id)" 
+            (click)="payOrder(order)" 
             class="pay-btn"
           >
             Complete Payment

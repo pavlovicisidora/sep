@@ -1,0 +1,72 @@
+<div class="qr-payment-container">
+  <div class="qr-payment-card">
+    <h2>Pay with QR Code</h2>
+    
+    <div *ngIf="qrCodeImage" class="qr-section">
+      <!-- QR Code Display -->
+      <img [src]="qrCodeImage" alt="QR Code" class="qr-code-image">
+      
+      <!-- Instructions -->
+      <div class="instructions">
+        <h3>How to Pay:</h3>
+        <ol>
+          <li>Open your mobile banking app (Intesa, Raiffeisen, etc.)</li>
+          <li>Select "IPS QR Payment" or "Scan & Pay"</li>
+          <li>Scan this QR code with your phone's camera</li>
+          <li>Confirm the payment in your banking app</li>
+          <li>Click "I've Paid" button below</li>
+        </ol>
+      </div>
+
+      <!-- Payment Details -->
+      <div class="payment-details">
+        <p><strong>Amount:</strong> {{ amount | currency:'RSD' }}</p>
+        <p><strong>Merchant:</strong> {{ merchantName }}</p>
+        <p><strong>Account:</strong> {{ merchantAccount }}</p>
+      </div>
+
+      <!-- Expiry Timer -->
+      <div class="expiry-warning" *ngIf="timeRemaining > 0">
+        <p>⏱️ QR code expires in: {{ formatTime(timeRemaining) }}</p>
+      </div>
+
+      <!-- Account Number Input -->
+      <div class="account-input" *ngIf="timeRemaining > 0 && !processing">
+        <label for="accountNumber"><strong>Your Bank Account Number:</strong></label>
+        <input
+          id="accountNumber"
+          type="text"
+          [(ngModel)]="accountNumber"
+          placeholder="e.g. 1234567890"
+          class="input-field"
+        />
+        <p class="input-hint" *ngIf="accountError">{{ accountError }}</p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons" *ngIf="timeRemaining > 0 && !processing">
+        <!-- Primary: Manual confirmation (simulates real banking app payment) -->
+        <button (click)="confirmPayment()" class="btn-primary" [disabled]="!accountNumber">
+          I've Scanned and Paid
+        </button>
+
+        <!-- Secondary: Test with scanner (validates QR format) -->
+        <button (click)="openScanner()" class="btn-secondary">
+          Test QR Code with Scanner
+        </button>
+      </div>
+
+      <!-- Processing State -->
+      <div *ngIf="processing" class="processing">
+        <div class="spinner"></div>
+        <p>Processing payment...</p>
+      </div>
+
+      <!-- Expired State -->
+      <div *ngIf="timeRemaining <= 0" class="expired">
+        <p>❌ QR code expired</p>
+        <button (click)="refreshQR()" class="btn-refresh">Generate New QR</button>
+      </div>
+    </div>
+  </div>
+</div>

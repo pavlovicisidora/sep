@@ -7,12 +7,14 @@ import com.ftn.sep.bank.model.CardInfo;
 import com.ftn.sep.bank.model.TransactionStatus;
 import com.ftn.sep.bank.security.HmacUtil;
 import com.ftn.sep.bank.service.*;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -27,6 +29,7 @@ public class PaymentController {
     private final BankAccountService bankAccountService;
     private final PSPService pspService;
     private final HmacUtil hmacUtil;
+    private final AuditService auditService;
 
     @Value("${psp.merchant.bank.id}")
     private String merchantId;
@@ -125,9 +128,13 @@ public class PaymentController {
 
     @PostMapping("/process")
     public ResponseEntity<ProcessPaymentResponse> processPayment(
-            @Valid @RequestBody ProcessPaymentRequest request) {
+            @Valid @RequestBody ProcessPaymentRequest request,
+            HttpServletRequest httpRequest) {
 
         log.info("Processing payment for Payment ID: {}", request.getPaymentId());
+        String clientIp = httpRequest.getRemoteAddr();
+        String panLastFour = request.getPan() != null && request.getPan().length() >= 4
+                ? request.getPan().substring(request.getPan().length() - 4) : "????";
 
         BankTransaction transaction = transactionService.findByPaymentId(request.getPaymentId())
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
@@ -138,25 +145,32 @@ public class PaymentController {
                     TransactionStatus.EXPIRED,
                     "Payment URL expired"
             );
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Payment session expired", clientIp);
             return ResponseEntity.status(HttpStatus.GONE)
                     .body(new ProcessPaymentResponse(
                             null,
                             transaction.getStan(),
                             "EXPIRED",
-                            "Payment session has expired"
+                            "Payment session has expired",
+                            null
                     ));
         }
 
         if (transaction.getStatus() != TransactionStatus.PENDING) {
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Transaction already processed", clientIp);
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "ALREADY_PROCESSED",
-                            "This payment has already been processed"
+                            "This payment has already been processed",
+                            null
                     ));
         }
 
+        // Stage 1: Format validation (Luhn, expiry format, CVV format)
         if (!cardValidationService.validateCard(
                 request.getPan(),
                 request.getExpiryDate(),
@@ -168,15 +182,27 @@ public class PaymentController {
                     "Invalid card data format"
             );
 
+            String redirectUrl = pspService.notifyPaymentResult(
+                    transaction.getStan(),
+                    transaction.getGlobalTransactionId(),
+                    transaction.getAcquirerTimestamp(),
+                    "FAILED"
+            );
+
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Invalid card data format", clientIp);
+
             return ResponseEntity.badRequest()
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "FAILED",
-                            "Invalid card data"
+                            "Invalid card data",
+                            redirectUrl
                     ));
         }
 
+        // Stage 2: Card data validation against database
         if (!cardService.validateCardData(
                 request.getPan(),
                 request.getCardHolderName(),
@@ -189,19 +215,23 @@ public class PaymentController {
                     "Card validation failed"
             );
 
-            pspService.notifyPaymentResult(
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
                     "FAILED"
             );
 
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Card validation failed", clientIp);
+
             return ResponseEntity.badRequest()
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "FAILED",
-                            "Invalid card information"
+                            "Invalid card information",
+                            redirectUrl
                     ));
         }
 
@@ -210,6 +240,7 @@ public class PaymentController {
 
         BankAccount account = card.getAccount();
 
+        // Stage 3: Balance check
         if (!bankAccountService.hasSufficientFunds(account, transaction.getAmount())) {
             transactionService.updateTransactionStatus(
                     transaction.getId(),
@@ -217,22 +248,27 @@ public class PaymentController {
                     "Insufficient funds"
             );
 
-            pspService.notifyPaymentResult(
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
                     "FAILED"
             );
 
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Insufficient funds", clientIp);
+
             return ResponseEntity.badRequest()
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "FAILED",
-                            "Insufficient funds"
+                            "Insufficient funds",
+                            redirectUrl
                     ));
         }
 
+        // Stage 4: Reserve funds and complete
         try {
             log.info("Balance before the payment: {}", account.getBalance());
 
@@ -249,20 +285,36 @@ public class PaymentController {
                     transaction.getStan());
             log.info("Balance after the payment: {}", account.getBalance());
 
-            pspService.notifyPaymentResult(
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
                     "SUCCESS"
             );
 
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "SUCCESS", "Payment processed successfully", clientIp);
+
             return ResponseEntity.ok(new ProcessPaymentResponse(
                     transaction.getGlobalTransactionId(),
                     transaction.getStan(),
                     "SUCCESS",
-                    "Payment processed successfully"
+                    "Payment processed successfully",
+                    redirectUrl
             ));
 
+        } catch (ObjectOptimisticLockingFailureException e) {
+            log.warn("Concurrent payment attempt detected for Payment ID: {}", request.getPaymentId());
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "FAILURE", "Concurrent payment attempt blocked", clientIp);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ProcessPaymentResponse(
+                            transaction.getGlobalTransactionId(),
+                            transaction.getStan(),
+                            "ALREADY_PROCESSED",
+                            "This payment has already been processed",
+                            null
+                    ));
         } catch (Exception e) {
             log.error("Error processing payment", e);
             transactionService.updateTransactionStatus(
@@ -271,19 +323,23 @@ public class PaymentController {
                     e.getMessage()
             );
 
-            pspService.notifyPaymentResult(
+            String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
                     transaction.getAcquirerTimestamp(),
                     "ERROR"
             );
 
+            auditService.logPaymentAttempt(request.getPaymentId(), panLastFour,
+                    "ERROR", "Payment processing error: " + e.getMessage(), clientIp);
+
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ProcessPaymentResponse(
                             transaction.getGlobalTransactionId(),
                             transaction.getStan(),
                             "ERROR",
-                            "Payment processing error"
+                            "Payment processing error",
+                            redirectUrl
                     ));
         }
     }
