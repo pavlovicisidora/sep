@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -159,7 +160,6 @@ public class PaymentController {
                     ));
         }
 
-        // Stage 1: Format validation (Luhn, expiry format, CVV format)
         if (!cardValidationService.validateCard(
                 request.getPan(),
                 request.getExpiryDate(),
@@ -171,7 +171,6 @@ public class PaymentController {
                     "Invalid card data format"
             );
 
-            // Notify PSP about failure so WebShop gets updated
             String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
@@ -189,7 +188,6 @@ public class PaymentController {
                     ));
         }
 
-        // Stage 2: Card data validation against database
         if (!cardService.validateCardData(
                 request.getPan(),
                 request.getCardHolderName(),
@@ -224,7 +222,6 @@ public class PaymentController {
 
         BankAccount account = card.getAccount();
 
-        // Stage 3: Balance check
         if (!bankAccountService.hasSufficientFunds(account, transaction.getAmount())) {
             transactionService.updateTransactionStatus(
                     transaction.getId(),
@@ -249,7 +246,6 @@ public class PaymentController {
                     ));
         }
 
-        // Stage 4: Reserve funds and complete
         try {
             log.info("Balance before the payment: {}", account.getBalance());
 
@@ -281,6 +277,16 @@ public class PaymentController {
                     redirectUrl
             ));
 
+        } catch (ObjectOptimisticLockingFailureException e) {
+            log.warn("Concurrent payment attempt detected for Payment ID: {}", request.getPaymentId());
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ProcessPaymentResponse(
+                            transaction.getGlobalTransactionId(),
+                            transaction.getStan(),
+                            "ALREADY_PROCESSED",
+                            "This payment has already been processed",
+                            null
+                    ));
         } catch (Exception e) {
             log.error("Error processing payment", e);
             transactionService.updateTransactionStatus(

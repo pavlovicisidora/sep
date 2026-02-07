@@ -181,7 +181,6 @@ public class PaymentController {
 
         log.info("Updated payment session status to: {}", newStatus);
 
-        // Notify merchant (WebShop) and get the browser redirect URL
         String redirectUrl = notifyMerchant(callbackUrl, session, request);
 
         log.info("Returning redirect URL to bank: {}", redirectUrl);
@@ -224,9 +223,6 @@ public class PaymentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Notifies the merchant (WebShop) about payment result and returns the browser redirect URL.
-     */
     private String notifyMerchant(String callbackUrl, PaymentSession session,
                                   PaymentCallbackRequest bankCallback) {
         log.info("Notifying merchant at: {}", callbackUrl);

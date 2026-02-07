@@ -65,6 +65,10 @@ public class BankTransaction {
     @Column(name = "payment_method")
     private String paymentMethod;
 
+    @Version
+    @Column(columnDefinition = "bigint default 0")
+    private Long version = 0L;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

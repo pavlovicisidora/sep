@@ -1,4 +1,4 @@
-import { Component, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, HostListener, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -43,6 +43,13 @@ export class QrScannerComponent implements AfterViewInit, OnDestroy {
   accountError: string | null = null;
 
   private animationFrameId?: number;
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.processing) {
+      event.preventDefault();
+    }
+  }
 
   constructor(
     private route: ActivatedRoute,

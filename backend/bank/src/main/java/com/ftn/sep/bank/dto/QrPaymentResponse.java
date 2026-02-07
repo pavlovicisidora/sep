@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 public class QrPaymentResponse {
     private String paymentId;
     private String paymentUrl;
-    private String qrCodeBase64; // Base64 encoded QR image
+    private String qrCodeBase64;
     private String status;
     private String message;
 }

@@ -26,12 +26,6 @@ public class PSPService {
     @Value("${psp.api.url}")
     private String pspApiUrl;
 
-    /**
-     * Notifies PSP about the payment result and returns the browser redirect URL
-     * that PSP obtained from the merchant (WebShop).
-     *
-     * @return the redirect URL for the user's browser, or null if notification failed
-     */
     public String notifyPaymentResult(String stan, String globalTransactionId,
                                       LocalDateTime acquirerTimestamp, String status) {
         String url = pspApiUrl + "/api/payment/callback";

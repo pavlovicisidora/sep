@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -20,6 +20,13 @@ export class PaymentFormComponent implements OnInit {
   processing = false;
   error: string | null = null;
   cardType: 'visa' | 'mastercard' | 'amex' | 'dinners' | 'unknown' = 'unknown';
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.processing) {
+      event.preventDefault();
+    }
+  }
 
   constructor(
     private fb: FormBuilder,

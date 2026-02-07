@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -199,7 +200,6 @@ public class QrPaymentController {
                         .body(Map.of("error", "QR code expired"));
             }
 
-            // Validate payer's account and check balance
             if (request.getAccountNumber() == null || request.getAccountNumber().isBlank()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Account number is required"));
@@ -250,12 +250,10 @@ public class QrPaymentController {
                         ));
             }
 
-            // Transfer funds: debit payer, credit merchant
             log.info("Payer balance before QR payment: {}", payerAccount.getBalance());
             bankAccountService.reserveFunds(payerAccount, transaction.getAmount());
             log.info("Payer balance after QR payment: {}", payerAccount.getBalance());
 
-            // Credit merchant account
             Optional<BankAccount> optMerchantAccount = bankAccountService.findByAccountNumber(merchantAccountNumber);
             if (optMerchantAccount.isPresent()) {
                 bankAccountService.releaseFunds(optMerchantAccount.get(), transaction.getAmount());
@@ -269,7 +267,6 @@ public class QrPaymentController {
                     null
             );
 
-            // Notify PSP and get redirect URL from WebShop via PSP
             String redirectUrl = pspService.notifyPaymentResult(
                     transaction.getStan(),
                     transaction.getGlobalTransactionId(),
@@ -286,6 +283,10 @@ public class QrPaymentController {
                     "message", "Payment confirmed successfully"
             ));
 
+        } catch (ObjectOptimisticLockingFailureException e) {
+            log.warn("Concurrent QR payment attempt detected for transaction: {}", request.getTransactionId());
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Transaction already processed"));
         } catch (Exception e) {
             log.error("Error confirming QR payment", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
