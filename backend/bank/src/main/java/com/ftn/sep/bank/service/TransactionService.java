@@ -19,6 +19,9 @@ public class TransactionService {
     private final BankTransactionRepository transactionRepository;
     private final AuditService auditService;
 
+    @org.springframework.beans.factory.annotation.Value("${bank.frontend.url:https://localhost:4201}")
+    private String bankFrontendUrl;
+
     @Transactional
     public BankTransaction createTransaction(BankTransaction transaction) {
         transaction.setPaymentId(generatePaymentId());
@@ -74,6 +77,6 @@ public class TransactionService {
     }
 
     private String generatePaymentUrl(String paymentId) {
-        return "https://localhost:4201/payment/" + paymentId;
+        return bankFrontendUrl + "/payment/" + paymentId;
     }
 }

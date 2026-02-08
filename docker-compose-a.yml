@@ -1,0 +1,56 @@
+version: '3.8'
+
+# Machine A: WebShop (webshop-db, webshop-backend, webshop-frontend)
+
+services:
+  webshop-db:
+    image: postgres:15-alpine
+    container_name: webshop-postgres
+    environment:
+      POSTGRES_DB: webshop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - webshop-data:/var/lib/postgresql/data
+    networks:
+      - sep-network
+
+  webshop-backend:
+    build:
+      context: ./backend/webshop
+    container_name: webshop-backend
+    restart: on-failure
+    ports:
+      - "8443:8443"
+    environment:
+      TZ: ${TZ}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://webshop-db:5432/webshop_db
+      PSP_API_URL: https://${MACHINE_B_IP}:8444
+      WEBSHOP_BASE_URL: https://${MACHINE_A_IP}:8443
+      WEBSHOP_FRONTEND_URL: https://${MACHINE_A_IP}:4200
+      CORS_ALLOWED_ORIGINS: https://${MACHINE_A_IP}:4200,https://localhost:4200
+    depends_on:
+      - webshop-db
+    networks:
+      - sep-network
+
+  webshop-frontend:
+    build:
+      context: ./frontend/webshop-app
+    container_name: webshop-frontend
+    ports:
+      - "4200:443"
+    environment:
+      WEBSHOP_API_URL: https://${MACHINE_A_IP}:8443
+      PSP_API_URL: https://${MACHINE_B_IP}:8444
+    networks:
+      - sep-network
+
+volumes:
+  webshop-data:
+
+networks:
+  sep-network:
+    driver: bridge
