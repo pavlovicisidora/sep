@@ -68,6 +68,13 @@ public class RentalOrderService {
     }
 
     @Transactional
+    public boolean trySetProcessing(Long orderId) {
+        int updated = rentalOrderRepository.updateStatusIfExpected(
+                orderId, OrderStatus.PENDING, OrderStatus.PROCESSING);
+        return updated > 0;
+    }
+
+    @Transactional
     public RentalOrder save(RentalOrder order) {
         return rentalOrderRepository.save(order);
     }

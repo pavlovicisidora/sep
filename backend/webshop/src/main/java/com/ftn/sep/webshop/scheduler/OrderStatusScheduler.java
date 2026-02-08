@@ -63,4 +63,35 @@ public class OrderStatusScheduler {
             }
         }
     }
+
+    @Scheduled(fixedRate = 300000) // every 5 minutes
+    public void cleanupAbandonedOrders() {
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(30);
+
+        List<RentalOrder> abandonedProcessing = rentalOrderRepository
+                .findByStatusAndLastPaymentAttemptIsNotNullAndLastPaymentAttemptBefore(
+                        OrderStatus.PROCESSING, threshold);
+
+        if (!abandonedProcessing.isEmpty()) {
+            log.info("Cleaning up {} abandoned PROCESSING orders (older than 30 min)", abandonedProcessing.size());
+            for (RentalOrder order : abandonedProcessing) {
+                order.setStatus(OrderStatus.FAILED);
+                rentalOrderRepository.save(order);
+                log.info("Order {} marked as FAILED (abandoned)", order.getMerchantOrderId());
+            }
+        }
+
+        List<RentalOrder> abandonedPending = rentalOrderRepository
+                .findByStatusAndLastPaymentAttemptIsNotNullAndLastPaymentAttemptBefore(
+                        OrderStatus.PENDING, threshold);
+
+        if (!abandonedPending.isEmpty()) {
+            log.info("Cleaning up {} abandoned PENDING orders (older than 30 min)", abandonedPending.size());
+            for (RentalOrder order : abandonedPending) {
+                order.setStatus(OrderStatus.FAILED);
+                rentalOrderRepository.save(order);
+                log.info("Order {} marked as FAILED (abandoned)", order.getMerchantOrderId());
+            }
+        }
+    }
 }
