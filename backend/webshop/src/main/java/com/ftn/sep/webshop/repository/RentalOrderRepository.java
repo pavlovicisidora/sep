@@ -4,6 +4,9 @@ import com.ftn.sep.webshop.model.RentalOrder;
 import com.ftn.sep.webshop.model.OrderStatus;
 import com.ftn.sep.webshop.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -21,4 +24,10 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long> 
 
     List<RentalOrder> findByStatusAndLastPaymentAttemptIsNotNullAndLastPaymentAttemptBefore(
             OrderStatus status, LocalDateTime time);
+
+    @Modifying
+    @Query("UPDATE RentalOrder o SET o.status = :newStatus WHERE o.id = :orderId AND o.status = :expectedStatus")
+    int updateStatusIfExpected(@Param("orderId") Long orderId,
+                               @Param("expectedStatus") OrderStatus expectedStatus,
+                               @Param("newStatus") OrderStatus newStatus);
 }

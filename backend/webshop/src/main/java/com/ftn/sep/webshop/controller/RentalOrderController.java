@@ -100,15 +100,17 @@ public class RentalOrderController {
                     .body(Map.of("error", "You can only pay for your own orders"));
         }
 
-        if (order.getStatus() != OrderStatus.PENDING) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Order is not in PENDING status"));
+        if (!rentalOrderService.trySetProcessing(orderId)) {
+            log.warn("Order {} is not in PENDING status or concurrent payment attempt", orderId);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Payment already in progress or order is not pending"));
         }
 
         try {
             String paymentMethod = requestBody.get("paymentMethod");
 
             if (paymentMethod == null || paymentMethod.isEmpty()) {
+                rentalOrderService.updateOrderStatus(orderId, OrderStatus.PENDING);
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Payment method is required"));
             }
@@ -130,6 +132,7 @@ public class RentalOrderController {
 
         } catch (Exception e) {
             log.error("Error initiating payment", e);
+            rentalOrderService.updateOrderStatus(orderId, OrderStatus.PENDING);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to initiate payment"));
         }
